@@ -1,0 +1,39 @@
+Iteration 0: The total cost decreased from 31797.593 to 5332.320  
+ - current lambda is 0.0002000 and cauchy kernel is 10.00  
+ - |delta_x|: 290.2231
+
+Iteration 1: The total cost decreased from 5332.320 to 638.420  
+ - current lambda is 0.0000400 and cauchy kernel is 10.00  
+ - |delta_x|: 177.0040
+
+Iteration 2: The total cost decreased from 638.420 to 81.249  
+ - current lambda is 0.0000080 and cauchy kernel is 10.00  
+ - |delta_x|: 95.5940
+
+Iteration 3: The total cost decreased from 81.249 to 61.977  
+ - current lambda is 0.0000016 and cauchy kernel is 10.00  
+ - |delta_x|: 304.9528
+
+Iteration 4: The total cost did not decrease (from 61.977 to 667.474).  
+ - increase lambda to 0.0000080 and cauchy kernel to 5.00  
+ - |delta_x|: 488.8143
+
+Iteration 5: The total cost did not decrease (from 61.747 to 116.580).  
+ - increase lambda to 0.0000400 and cauchy kernel to 2.50  
+ - |delta_x|: 289.5268
+
+Iteration 6: The total cost decreased from 60.936 to 27.634  
+ - current lambda is 0.0000080 and cauchy kernel is 2.50  
+ - |delta_x|: 110.2447
+
+Iteration 7: The total cost did not decrease (from 27.634 to 43.460).  
+ - increase lambda to 0.0000400 and cauchy kernel to 1.25  
+ - |delta_x|: 208.5374
+
+Iteration 8: The total cost decreased from 26.771 to 18.395  
+ - current lambda is 0.0000080 and cauchy kernel is 1.25  
+ - |delta_x|: 93.3641
+
+Iteration 9: The total cost decreased from 18.395 to 17.110  
+ - current lambda is 0.0000016 and cauchy kernel is 1.25  
+ - |delta_x|: 131.2276
