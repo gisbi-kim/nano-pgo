@@ -1,5 +1,5 @@
 # nano-pgo
-- ![example results](docs/results/visualization/readme.png)
+ ![example results](docs/results/visualization/readme.png)
 - For an education purpose
 - From-scratch pose-graph optimization implementation 
 - Miminum dependencies: numpy/scipy/sksparse (and open3d for visualization).
