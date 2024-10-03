@@ -2,7 +2,6 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 import sksparse.cholmod as cholmod
 
 import open3d as o3d
