@@ -31,6 +31,6 @@
 - Use more theoretically accurate or automatically generated Jacobian (e.g., Symforce)
 - Detailed teaching materials
 
-## Ack 
+## Acknowledgement 
 - Datasets from https://lucacarlone.mit.edu/datasets/
 
