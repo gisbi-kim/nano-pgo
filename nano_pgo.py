@@ -301,10 +301,10 @@ class PoseGraphOptimizer:
 
         return x
 
-    def get_state_block(self, states_all_vector, location):
-        start_location = self.STATE_DIM * location
+    def get_state_block(self, states_vector, block_idx):
+        start_location = self.STATE_DIM * block_idx
         end_location = start_location + self.STATE_DIM
-        return states_all_vector[start_location:end_location]
+        return states_vector[start_location:end_location]
 
     def add_initials(self, poses_initial):
         self.poses_initial = poses_initial
