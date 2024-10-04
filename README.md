@@ -1,7 +1,8 @@
 # nano-pgo
  ![example results](docs/results/visualization/readme.png)
 - For an education purpose
-- From-scratch pose-graph optimization implementation 
+- From-scratch pose-graph optimization implementation
+- A single file
 - Miminum dependencies: numpy/scipy/sksparse (and open3d for visualization).
     - numpy for basic matrix handling 
     - scipy for basic rotation functions and sparse matrix containers 
