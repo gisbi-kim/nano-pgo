@@ -230,15 +230,15 @@ class PoseGraphOptimizer:
                         R = quaternion_to_rotation(qx, qy, qz, qw)
                         t = np.array([x, y, z])
 
-                        # 정보 행렬은 원본 데이터를 파싱하지만, 이후 조건에 따라 상수 행렬로 대체
+                        # The information matrix parses the original data, but is later replaced by a constant matrix depending on conditions
                         information_matrix = parse_information_matrix(data[10:], 6)
 
-                        # const info 사용이 더 안정적임
+                        # Using a constant info matrix is more stable
                         if abs(id_from - id_to) > 1:
-                            # 루프 엣지
+                            # Loop edge
                             information_matrix = self.loop_information_matrix
                         else:
-                            # 오도메트리 엣지
+                            # Odometry edge
                             information_matrix = self.odom_information_matrix
 
                         edges.append(
@@ -257,18 +257,18 @@ class PoseGraphOptimizer:
                         dx, dy, dtheta = map(float, data[3:6])
                         R, t = se2_to_se3(dx, dy, dtheta)
 
-                        # SE2 정보 행렬을 파싱하고 6x6으로 패딩
+                        # Parse the SE2 information matrix and pad it to 6x6
                         information_matrix_se2 = parse_information_matrix(data[6:12], 3)
                         information_matrix = np.zeros((6, 6))
                         information_matrix[:3, :3] = information_matrix_se2
-                        information_matrix += np.diag(np.ones(6))  # 필요에 따라 조정
+                        information_matrix += np.diag(np.ones(6)) 
 
-                        # const info 사용이 더 안정적임
+                        # Using a constant info matrix is more stable
                         if abs(id_from - id_to) > 1:
-                            # 루프 엣지
+                            # Loop edge
                             information_matrix = self.loop_information_matrix
                         else:
-                            # 오도메트리 엣지
+                            # Odometry edge
                             information_matrix = self.odom_information_matrix
 
                         edges.append(
@@ -717,11 +717,7 @@ def plot_two_poses_with_edges_open3d(
     else:
         line_set = None
 
-    # Create XYZ axes
-    axes = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
-
     # Visualize both point clouds, lines, and axes
-    # geometries = [pcd_initial, pcd_optimized, axes]
     geometries = [pcd_initial, pcd_optimized]
     if line_set:
         geometries.append(line_set)
@@ -729,11 +725,10 @@ def plot_two_poses_with_edges_open3d(
     o3d.visualization.draw_geometries(
         geometries,
         zoom=0.8,
-        front=[-0.4999, -0.1659, -0.8499],
-        lookat=[0, 0, 0],
-        up=[0.1204, -0.9852, 0.1215],
+        front=[0, 0, 1], # top view
+        lookat=initial_poses_list[-1],
+        up=[0, 1, 0],  
     )
-
 
 if __name__ == "__main__":
     """
