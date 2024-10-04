@@ -130,12 +130,12 @@ def compute_between_factor_residual_and_jacobian(pose_i, pose_j, measurement):
     Ji = np.zeros((6, 6))
     Ji[:3, :3] = -Rij_meas.T @ Ri_inv
     Ji[:3, 3:] = Rij_meas.T @ Ri_inv @ skew_symmetric(tj - ti)
-    Ji[3:, 3:] = -I33  # TODO: need to derive a more accurate one, not this approx one.
+    Ji[3:, 3:] = -I33  # TODO: derive a more accurate one, not this approx one.
 
     # Jacobian w.r. to pose j
     Jj = np.zeros((6, 6))
     Jj[:3, :3] = Rij_meas.T @ Ri_inv
-    Jj[3:, 3:] = I33  # TODO: need to derive a more accurate one, not this approx one.
+    Jj[3:, 3:] = I33  # TODO: derive a more accurate one, not this approx one.
 
     return residual, Ji, Jj
 
@@ -180,7 +180,7 @@ class PoseGraphOptimizer:
         self.add_prior_to_prevent_gauge_freedom = True
 
         # misc
-        self.H_saved = False
+        self.H_fig_saved = False
 
     def read_g2o_file(self, file_path):
         """
@@ -316,11 +316,8 @@ class PoseGraphOptimizer:
         self.edges = edges
 
     def add_prior(self, idx):
-        #
-        # Current option: only single prior.
-        #
+        # Current option: only single prior to avoid gauge problem
         self.prior_pose_id = self.pose_indices[idx]
-
         self.setup_fixed_single_prior(self.prior_pose_id)
 
     def setup_fixed_single_prior(self, prior_pose_id):
@@ -328,7 +325,7 @@ class PoseGraphOptimizer:
         self.idx_prior = self.index_map[prior_pose_id]
 
         # Information matrix for the prior
-        self.information_prior = 1e7 * np.identity(self.STATE_DIM)  # Adjust as needed
+        self.information_prior = 1e9 * np.identity(self.STATE_DIM)  # Adjust as needed
 
     def generate_poses_index_map(self, pose_indices):
         return {pose_id: idx for idx, pose_id in enumerate(pose_indices)}
@@ -370,12 +367,15 @@ class PoseGraphOptimizer:
                 # For loop closure edges, robust kernel is applied
                 s = residual.T @ information_edge @ residual
                 weight = self.cauchy_weight(s)
-                residual *= weight
-                Ji *= weight
-                Jj *= weight
             else:
                 # for odom edges, no robust loss
                 weight = 1.0
+
+            # deweighting
+            #  ref: 1997, Zhang, Zhengyou. "Parameter estimation techniques: A tutorial with application to conic fitting."
+            residual *= weight
+            Ji *= weight
+            Jj *= weight
 
             # Accumulate error
             total_error += residual.T @ information_edge @ residual
@@ -499,7 +499,7 @@ class PoseGraphOptimizer:
         self.fig.canvas.flush_events()
 
         self.fig.savefig(f"docs/H/H_sparsity_{name}.png")
-        self.H_saved = True
+        self.H_fig_saved = True
 
     # Recalculate error with updated poses
     def evaluate_error_changes(self, x_new):
@@ -528,7 +528,11 @@ class PoseGraphOptimizer:
             if not self.nodes_are_consecutive(edge["from"], edge["to"]):
                 s = residual.T @ information @ residual
                 weight = self.cauchy_weight(s)
-                residual *= weight
+            else:
+                weight = 1.0
+
+            # deweight 
+            residual *= weight
 
             total_error_after_iter_opt += residual.T @ information @ residual
 
@@ -576,7 +580,7 @@ class PoseGraphOptimizer:
     def process_single_iteration(self, iteration):
         # build and solve the system
         H, b, total_error = self.build_sparse_system(self.edges)
-        if not self.H_saved:
+        if not self.H_fig_saved:
             self.plot_H_matrix(H, self.dataset_name)
 
         delta_x = self.solve_sparse_system(H, b, total_error)
@@ -741,12 +745,12 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    # dataset_name = "data/cubicle.g2o"  # not perfect but can say not failed.
+    # dataset_name = "data/cubicle.g2o" 
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/input_INTEL_g2o.g2o"
     dataset_name = "data/input_M3500_g2o.g2o"
 
-    # TODO: these dataset still fails
+    # TODO: these datasets still fail
     # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o"
