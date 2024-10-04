@@ -12,6 +12,7 @@
 ## Preparation (Dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
     - `$ python3.11 -m venv ~/envs/py311`
+    - `$ source ~/envs/py311/bin/activate`
     - `$ pip install "numpy<2.0"`
     - `$ pip install scipy` 
     - `$ sudo apt-get install libsuitesparse-dev` 
