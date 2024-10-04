@@ -9,6 +9,16 @@
     - sksparse for cholmod and solve function
     - open3d for large-sized point cloud (pose-graph) visualization
 
+## Preparation (Dependencies)
+- Recommend to use python<3.12 and numpy<2, for example,
+    - `$ python3.11 -m venv ~/envs/py311`
+    - `$ pip install "numpy<2.0"`
+    - `$ pip install scipy` 
+    - `$ sudo apt-get install libsuitesparse-dev` 
+    - `$ pip install scikit-sparse`
+    - `$ pip install matplotlib`
+    - `$ pip install open3d`
+
 ## How to use 
 - `$ python nano_pgo.py`
 - It's also recommended to compare the results from GTSAM (better and faster!) by using `baseline_gtsam.py`.
