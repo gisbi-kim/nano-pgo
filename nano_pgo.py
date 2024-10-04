@@ -140,25 +140,6 @@ def compute_between_factor_residual_and_jacobian(pose_i, pose_j, measurement):
     return residual, Ji, Jj
 
 
-def parse_information_matrix(data, size):
-    """
-    Parses the upper triangular part of the information matrix and constructs the full symmetric matrix.
-
-    Parameters:
-        data (list of float): Upper triangular elements of the information matrix.
-        size (int): Size of the square information matrix.
-
-    Returns:
-        information_matrix (np.ndarray): size x size information matrix.
-    """
-    information_upper = np.array(data)
-    information_matrix = np.zeros((size, size))
-    indices = np.triu_indices(size)
-    information_matrix[indices] = information_upper
-    information_matrix += information_matrix.T - np.diag(information_matrix.diagonal())
-    return information_matrix
-
-
 class PoseGraphOptimizer:
     def __init__(self, max_iterations, c):
         self.STATE_DIM = 6
@@ -198,6 +179,48 @@ class PoseGraphOptimizer:
         poses = {}
         edges = []
 
+        def parse_information_matrix(data, size):
+            """
+            Parses the upper triangular part of the information matrix and constructs the full symmetric matrix.
+
+            Parameters:
+                data (list of float): Upper triangular elements of the information matrix.
+                size (int): Size of the square information matrix.
+
+            Returns:
+                information_matrix (np.ndarray): size x size information matrix.
+            """
+            information_upper = np.array(data)
+            information_matrix = np.zeros((size, size))
+            indices = np.triu_indices(size)
+            information_matrix[indices] = information_upper
+            information_matrix += information_matrix.T - np.diag(
+                information_matrix.diagonal()
+            )
+            return information_matrix
+
+        def information_matrix_wrt_edge_type(is_consecutive):
+            # Using a constant info matrix is more stable
+            if is_consecutive:
+                # Odometry edge
+                information_matrix = self.odom_information_matrix
+            else:
+                # Loop edge
+                information_matrix = self.loop_information_matrix
+
+            return information_matrix
+
+        def SE3_edge_dict(id_from, id_to, R, t, information_matrix):
+            return {
+                "from": id_from,
+                "to": id_to,
+                "R": R,
+                "t": t,
+                "information": information_matrix,
+            }
+
+        self.using_predefined_const_information_matrix_wrt_type = True
+
         with open(file_path, "r") as f:
             for line in f:
                 data = line.strip().split()
@@ -230,26 +253,17 @@ class PoseGraphOptimizer:
                         R = quaternion_to_rotation(qx, qy, qz, qw)
                         t = np.array([x, y, z])
 
-                        # The information matrix parses the original data, but is later replaced by a constant matrix depending on conditions
-                        information_matrix = parse_information_matrix(data[10:], 6)
-
-                        # Using a constant info matrix is more stable
-                        if abs(id_from - id_to) > 1:
-                            # Loop edge
-                            information_matrix = self.loop_information_matrix
+                        if self.using_predefined_const_information_matrix_wrt_type:
+                            # Using a constant info matrix seems generally more stable
+                            information_matrix = information_matrix_wrt_edge_type(
+                                is_consecutive=(abs(id_from - id_to) == 1)
+                            )
                         else:
-                            # Odometry edge
-                            information_matrix = self.odom_information_matrix
+                            # The information matrix parses the original data,
+                            information_matrix = parse_information_matrix(data[10:], 6)
 
-                        edges.append(
-                            {
-                                "from": id_from,
-                                "to": id_to,
-                                "R": R,
-                                "t": t,
-                                "information": information_matrix,
-                            }
-                        )
+                        edge = SE3_edge_dict(id_from, id_to, R, t, information_matrix)
+                        edges.append(edge)
 
                     elif tag == "EDGE_SE2":
                         id_from = int(data[1])
@@ -257,29 +271,22 @@ class PoseGraphOptimizer:
                         dx, dy, dtheta = map(float, data[3:6])
                         R, t = se2_to_se3(dx, dy, dtheta)
 
-                        # Parse the SE2 information matrix and pad it to 6x6
-                        information_matrix_se2 = parse_information_matrix(data[6:12], 3)
-                        information_matrix = np.zeros((6, 6))
-                        information_matrix[:3, :3] = information_matrix_se2
-                        information_matrix += np.diag(np.ones(6)) 
-
-                        # Using a constant info matrix is more stable
-                        if abs(id_from - id_to) > 1:
-                            # Loop edge
-                            information_matrix = self.loop_information_matrix
+                        if self.using_predefined_const_information_matrix_wrt_type:
+                            # Using a constant info matrix seems generally more stable
+                            information_matrix = information_matrix_wrt_edge_type(
+                                is_consecutive=(abs(id_from - id_to) == 1)
+                            )
                         else:
-                            # Odometry edge
-                            information_matrix = self.odom_information_matrix
+                            # Parse the SE2 information matrix and pad it to 6x6
+                            information_matrix_se2 = parse_information_matrix(
+                                data[6:12], 3
+                            )
+                            information_matrix = np.zeros((6, 6))
+                            information_matrix[:3, :3] = information_matrix_se2
+                            information_matrix += np.diag(np.ones(6))
 
-                        edges.append(
-                            {
-                                "from": id_from,
-                                "to": id_to,
-                                "R": R,
-                                "t": t,
-                                "information": information_matrix,
-                            }
-                        )
+                        edge = SE3_edge_dict(id_from, id_to, R, t, information_matrix)
+                        edges.append(edge)
 
         # Convert rotations to rotation vectors
         for pose_id, pose in poses.items():
@@ -531,7 +538,7 @@ class PoseGraphOptimizer:
             else:
                 weight = 1.0
 
-            # deweight 
+            # deweight
             residual *= weight
 
             total_error_after_iter_opt += residual.T @ information @ residual
@@ -705,9 +712,7 @@ def plot_two_poses_with_edges_open3d(
 
     # Create Open3D LineSet for the edges
     if lines:
-        """
-        Creates a LineSet object to represent edges between poses.
-        """
+        # Creates a LineSet object to represent edges between poses.
         # Use the points from the optimized poses as vertices
         line_set = o3d.geometry.LineSet()
         points = np.array(optimized_poses_list)
@@ -725,10 +730,11 @@ def plot_two_poses_with_edges_open3d(
     o3d.visualization.draw_geometries(
         geometries,
         zoom=0.8,
-        front=[0, 0, 1], # top view
+        front=[0, 0, 1],  # top view
         lookat=initial_poses_list[-1],
-        up=[0, 1, 0],  
+        up=[0, 1, 0],
     )
+
 
 if __name__ == "__main__":
     """
@@ -740,7 +746,7 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    # dataset_name = "data/cubicle.g2o" 
+    # dataset_name = "data/cubicle.g2o"
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/input_INTEL_g2o.g2o"
     dataset_name = "data/input_M3500_g2o.g2o"
@@ -778,8 +784,10 @@ if __name__ == "__main__":
     sorted_pose_ids = sorted(poses_initial.keys())
 
     # Extract initial and optimized translations as lists
-    initial_poses_list = [poses_initial[pose_id]["t"] for pose_id in sorted_pose_ids]
-    optimized_poses_list = [
+    initial_positions_list = [
+        poses_initial[pose_id]["t"] for pose_id in sorted_pose_ids
+    ]
+    optimized_positions_list = [
         poses_optimized[pose_id]["t"] for pose_id in sorted_pose_ids
     ]
 
@@ -788,5 +796,5 @@ if __name__ == "__main__":
 
     # Plot the results using Open3D
     plot_two_poses_with_edges_open3d(
-        initial_poses_list, optimized_poses_list, edges_for_plotting
+        initial_positions_list, optimized_positions_list, edges_for_plotting
     )
