@@ -29,18 +29,19 @@
 
 ## Goal 
 - Understand 
-    - what is pose-graph optimization
-    - what is a g2o-format pose-graph data 
-    - what is se(3) and SE(3) (the tangent space and the manifold)
-    - what is iterative least-square optimization and solving normal equation
-    - what is the error and jacobians of between factors and how to be derived
-    - why sparse solver is necessary (here, we used sksparse.cholmod)
-    - why damping is necessary (i.e., LM iterative optimization method)
-    - why robust loss is necessary (here, we used Cauchy deweighting)
+    - what is pose-graph optimization.
+    - what is a g2o-format pose-graph data.
+    - what is se(3) and SE(3) (the tangent space and the manifold).
+    - what is iterative least-square optimization and solving normal equation.
+    - what is the error and jacobians of between factors and how to be derived.
+    - what is the gauge freedom of pose-graph SLAM.
+    - why sparse solver is necessary (here, we used sksparse.cholmod).
+    - why damping is necessary (i.e., LM iterative optimization method).
+    - why robust loss is necessary (here, we used Cauchy deweighting).
     - what are the differences between numerical and symbolic diffs.
     - how to use symforce APIs. 
     - how to use GTSAM APIs.
-    - what is the real-world problems, use-cases, and state-of-the arts
+    - what is the real-world problems, use-cases, and state-of-the arts.
     
 ## Symforce-based Auto-generated Jacobians 
 - SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
