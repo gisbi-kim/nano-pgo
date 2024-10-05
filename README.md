@@ -20,6 +20,7 @@
     - `$ pip install scikit-sparse`
     - `$ pip install matplotlib`
     - `$ pip install open3d`
+    - `$ pip install symforce`
 
 ## How to use 
 - `$ python nano_pgo.py`
@@ -44,7 +45,7 @@
 ## Symforce-based Auto-generated Jacobians 
 - SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
 - You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`.
-- ![example results 2](docs/comparison_jacobian_modes/parking-garage/summary.png)
+![example results 2](docs/comparison_jacobian_modes/parking-garage/summary.png)
 
 
 ## TODO
