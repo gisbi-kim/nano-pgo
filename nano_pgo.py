@@ -141,9 +141,7 @@ sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
 sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
 sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
 
-# Calculate translation error
-# T_err = T_ij^{-1} * (T_i^{-1} * T_j)
-# Using SE3 operations in symforce to compute translation error
+# Construct SE(3) containers 
 sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
 sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
 sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
@@ -151,7 +149,8 @@ sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
 # SE3 error: T_err = T_ij^{-1} * T_i^{-1} * T_j
 sf_T_err = sf_Tij.inverse() * (sf_Ti.inverse() * sf_Tj)
 
-# Convert SE3 error to a tangent vector (6D: 3 for rotation, 3 for translation)
+# Convert SE3 error to a tangent vector [r, t], 6-dim.
+#  NOTE: symforce uses the [r, t] order, not [t, r].
 sf_se3_err = sf.Matrix(sf_T_err.to_tangent())
 
 # Define residual as the rotation and translation error
