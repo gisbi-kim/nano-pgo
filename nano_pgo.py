@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 np.set_printoptions(linewidth=np.inf, suppress=True, precision=4)
@@ -5,6 +6,9 @@ from scipy.spatial.transform import Rotation
 
 import scipy.sparse as sp
 import sksparse.cholmod as cholmod
+
+import symforce.symbolic as sf
+from symforce.ops import LieGroupOps
 
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -40,6 +44,126 @@ def skew_symmetric(v):
     return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
 
+def plot_two_poses_with_edges_open3d(
+    initial_poses_list, optimized_poses_list, edges, skip=1
+):
+    """
+    Visualizes initial and optimized poses along with edges using Open3D.
+
+    Parameters:
+        initial_poses_list (list of np.ndarray): List of initial pose translations (3D positions).
+        optimized_poses_list (list of np.ndarray): List of optimized pose translations (3D positions).
+        edges (list of dict): List of edges, where each edge contains "i", "j" for the indices.
+        skip (int, optional): Plot every 'skip' poses (default is 1, which plots all poses).
+    """
+
+    def poses_to_point_cloud(pose_list, color, skip=1):
+        points = [pose for idx, pose in enumerate(pose_list) if idx % skip == 0]
+        points_np = np.array(points)
+
+        # Create Open3D point cloud
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points_np)
+
+        # Set point colors
+        colors_np = np.tile(color, (points_np.shape[0], 1))
+        pcd.colors = o3d.utility.Vector3dVector(colors_np)
+
+        return pcd
+
+    # Create two point clouds with different colors
+    pcd_initial = poses_to_point_cloud(
+        initial_poses_list, color=[1, 0, 0], skip=skip
+    )  # Red for initial poses
+    pcd_optimized = poses_to_point_cloud(
+        optimized_poses_list, color=[0, 1, 0], skip=skip
+    )  # Green for optimized poses
+
+    # Create lines for edges between poses
+    lines = []
+    line_colors = []
+
+    for edge in edges:
+        from_idx = edge["i"]
+        to_idx = edge["j"]
+
+        # Only plot edges if indices are valid
+        if from_idx < len(optimized_poses_list) and to_idx < len(optimized_poses_list):
+            # Line connects the from and to poses
+            line = [from_idx, to_idx]
+            lines.append(line)
+            line_colors.append([0, 0, 1])  # Blue color for the lines
+
+    # Create Open3D LineSet for the edges
+    if lines:
+        # Creates a LineSet object to represent edges between poses.
+        # Use the points from the optimized poses as vertices
+        line_set = o3d.geometry.LineSet()
+        points = np.array(optimized_poses_list)
+        line_set.points = o3d.utility.Vector3dVector(points)
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        line_set.colors = o3d.utility.Vector3dVector(line_colors)
+    else:
+        line_set = None
+
+    # Visualize both point clouds, lines, and axes
+    geometries = [pcd_initial, pcd_optimized]
+    if line_set:
+        geometries.append(line_set)
+
+    o3d.visualization.draw_geometries(
+        geometries,
+        zoom=0.8,
+        front=[0, 0, 1],  # top view
+        lookat=initial_poses_list[-1],
+        up=[0, 1, 0],
+    )
+
+
+#
+# TODO: make these non-global (but must be called "once")
+#
+
+epsilon = 1e-7
+
+# Define rotation variables (rotation vectors for each axis)
+sf_ri = sf.V3.symbolic("ri")  # Rotation of pose_i
+sf_rj = sf.V3.symbolic("rj")  # Rotation of pose_j
+sf_rij = sf.V3.symbolic("rij")  # Measured relative rotation
+
+# Define translation variables
+sf_ti = sf.V3.symbolic("ti")  # Translation of pose_i
+sf_tj = sf.V3.symbolic("tj")  # Translation of pose_j
+sf_tij = sf.V3.symbolic("tij")  # Measured relative translation
+
+# Create rotation matrices using Lie Group operations
+sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
+sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
+sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
+
+# Calculate translation error
+# T_err = T_ij^{-1} * (T_i^{-1} * T_j)
+# Using SE3 operations in symforce to compute translation error
+sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
+sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
+sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
+
+# SE3 error: T_err = T_ij^{-1} * T_i^{-1} * T_j
+sf_T_err = sf_Tij.inverse() * (sf_Ti.inverse() * sf_Tj)
+
+# Convert SE3 error to a tangent vector (6D: 3 for rotation, 3 for translation)
+sf_se3_err = sf.Matrix(sf_T_err.to_tangent())
+
+# Define residual as the rotation and translation error
+sf_residual = sf_se3_err  # 6D vector
+
+# Compute the full Jacobian
+sf_J_ti = sf_residual.jacobian([sf_ti])  # 6 x 3
+sf_J_ri = sf_residual.jacobian([sf_ri])  # 6 x 3
+sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
+sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
+
+
 def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     """
     Computes the Jacobians for the between factor residual using Symforce symbolic computation.
@@ -58,48 +182,6 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             cost_func_translation_part  |               *                          *               |
             cost_func_rotation_part     |               *                          *               |
     """
-
-    import symforce.symbolic as sf
-    from symforce.ops import LieGroupOps
-
-    epsilon = 1e-7
-
-    # Define rotation variables (rotation vectors for each axis)
-    sf_ri = sf.V3.symbolic("ri")  # Rotation of pose_i
-    sf_rj = sf.V3.symbolic("rj")  # Rotation of pose_j
-    sf_rij = sf.V3.symbolic("rij")  # Measured relative rotation
-
-    # Define translation variables
-    sf_ti = sf.V3.symbolic("ti")  # Translation of pose_i
-    sf_tj = sf.V3.symbolic("tj")  # Translation of pose_j
-    sf_tij = sf.V3.symbolic("tij")  # Measured relative translation
-
-    # Create rotation matrices using Lie Group operations
-    sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
-    sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
-    sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
-
-    # Calculate translation error
-    # T_err = T_ij^{-1} * (T_i^{-1} * T_j)
-    # Using SE3 operations in symforce to compute translation error
-    sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
-    sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
-    sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
-
-    # SE3 error: T_err = T_ij^{-1} * T_i^{-1} * T_j
-    sf_T_err = sf_Tij.inverse() * (sf_Ti.inverse() * sf_Tj)
-
-    # Convert SE3 error to a tangent vector (6D: 3 for rotation, 3 for translation)
-    sf_se3_err = sf.Matrix(sf_T_err.to_tangent())
-
-    # Define residual as the rotation and translation error
-    sf_residual = sf_se3_err  # 6D vector
-
-    # Compute the full Jacobian
-    sf_J_ti = sf_residual.jacobian([sf_ti])  # 6 x 3
-    sf_J_ri = sf_residual.jacobian([sf_ri])  # 6 x 3
-    sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
-    sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
     # Create the substitutions dictionary
     substitutions = {
@@ -185,7 +267,8 @@ def compute_between_factor_residual_and_jacobian(
         Jj[:3, :3] = Rij_meas.T @ Ri_inv
         Jj[3:, 3:] = np.eye(3)  # approx
 
-        # the above approximations are valid for small angle differecne (may differ at the early iterations wrt the symforce version)
+        # ps. the above approximations are valid for small angle differecne
+        #  (may differ at the early iterations wrt the symforce version)
 
         return Ji, Jj
 
@@ -199,15 +282,13 @@ def compute_between_factor_residual_and_jacobian(
     if debug_compare_jacobians:
         by_hand_Ji, by_hand_Jj = between_factor_jacobian_by_hand_approx()
 
-        import time
-
         start_time = time.perf_counter()
         by_symb_Ji, by_symb_Jj = between_factor_jacobian_by_symforce(
             pose_i, pose_j, pose_ij_meas
         )
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
-        print("=" * 30)
+        print("=" * 30, f"elapsed time: {elapsed_time:.8f} sec.")
         print(f"by_hand_Ji\n {by_hand_Ji}")
         print(f"by_symbolic_Ji\n {by_symb_Ji}\n")
         print(f"by_hand_Jj\n {by_hand_Jj}")
@@ -217,7 +298,13 @@ def compute_between_factor_residual_and_jacobian(
 
 
 class PoseGraphOptimizer:
-    def __init__(self, max_iterations, c, use_jacobian_approx_fast, num_processes=1):
+    def __init__(
+        self,
+        max_iterations=50,
+        initial_cauchy_c=10.0,
+        use_jacobian_approx_fast=False,
+        num_processes=1,
+    ):
         self.STATE_DIM = 6
 
         self.max_iterations = max_iterations
@@ -231,7 +318,7 @@ class PoseGraphOptimizer:
             )
 
         # Robust loss
-        self.c = c  # cauchy kernel
+        self.cauchy_c = initial_cauchy_c  # cauchy kernel
 
         # LM iterative optimization
         self.lambda_ = 0.001  # Initial damping factor, for LM opt
@@ -383,7 +470,7 @@ class PoseGraphOptimizer:
 
     def cauchy_weight(self, s):
         epsilon = 1e-5
-        return self.c / (np.sqrt(self.c**2 + s) + epsilon)
+        return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
     def initialize_variables_container(self, index_map):
         x = np.zeros(6 * self.num_poses)
@@ -433,7 +520,7 @@ class PoseGraphOptimizer:
         ii, edge, index_map, x, STATE_DIM, use_jacobian_approx_fast = edge_data
 
         if self.loud_verbose and (ii % 1000 == 0):
-            print(f" [build_sparse_system] processing edge {ii}/{len(edges)}")
+            print(f" [(parr) build_sparse_system] processing edge {ii}/{len(edges)}")
 
         idx_i = index_map[edge["from"]]
         idx_j = index_map[edge["to"]]
@@ -682,21 +769,21 @@ class PoseGraphOptimizer:
             print(
                 f"\nIteration {iteration}: The total cost",
                 f"decreased from {error_before_opt:.3f} to {error_after_opt:.3f}",
-                f" \n - current lambda is {self.lambda_:.7f} and cauchy kernel is {self.c:.2f}",
+                f" \n - current lambda is {self.lambda_:.7f} and cauchy kernel is {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
         else:
             # tune params
             if self.lambda_ < self.lambda_allowed_range[1]:
                 self.lambda_ *= 5
-            if self.c > 1.0:
-                self.c /= 2
+            if self.cauchy_c > 1.0:
+                self.cauchy_c /= 2
 
             # verbose
             print(
                 f"\nIteration {iteration}: The total cost did not decrease (from",
                 f"{error_before_opt:.3f} to {error_after_opt:.3f}).",
-                f" \n - increase lambda to {self.lambda_:.7f} and cauchy kernel to {self.c:.2f}",
+                f" \n - increase lambda to {self.lambda_:.7f} and cauchy kernel to {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
 
@@ -722,16 +809,22 @@ class PoseGraphOptimizer:
             iteration, delta_x, total_error, total_error_after_iter_opt
         )
 
+        # visualize this iterations's result
+        self.visualize_3d_poses(self.get_optimized_poses())
+
         # Check for convergence
-        if np.abs(total_error - total_error_after_iter_opt) < 1e-1:
+        termination_flag = False
+        convergence_error_diff_threshold = 1e-1
+        if (total_error_after_iter_opt < total_error) and (
+            np.abs(total_error - total_error_after_iter_opt)
+            < convergence_error_diff_threshold
+        ):
             print("Converged.")
             termination_flag = True
-            return termination_flag
 
-        termination_flag = False
         return termination_flag
 
-    def optimize(self):
+    def optimize(self, visual_debug=True):
         """
         Performs pose graph optimization using the Gauss-Newton method with robust kernels.
 
@@ -755,90 +848,39 @@ class PoseGraphOptimizer:
                 break
 
         # Extract optimized poses
+        return self.get_optimized_poses()
+
+    def get_optimized_poses(self):
         optimized_poses = {}
         for pose_id, idx in self.index_map.items():
-            xi = self.x[6 * idx : 6 * idx + 6]
-            t, r = xi[:3], xi[3:]
+            xi = self.x[(6 * idx) : (6 * idx) + 6]
+            t = xi[:3]
+            r = xi[3:]
             R = rotvec_to_rotmat(r)
             optimized_poses[pose_id] = {"R": R, "t": t}
 
         return optimized_poses
 
+    def visualize_3d_poses(self, poses_optimized):
+        # Prepare data for plotting
+        # Sort the poses based on pose IDs to maintain order
+        sorted_pose_ids = sorted(self.poses_initial.keys())
 
-def plot_two_poses_with_edges_open3d(
-    initial_poses_list, optimized_poses_list, edges, skip=1
-):
-    """
-    Visualizes initial and optimized poses along with edges using Open3D.
+        # Extract initial and optimized translations as lists
+        initial_positions_list = [
+            self.poses_initial[pose_id]["t"] for pose_id in sorted_pose_ids
+        ]
+        optimized_positions_list = [
+            poses_optimized[pose_id]["t"] for pose_id in sorted_pose_ids
+        ]
 
-    Parameters:
-        initial_poses_list (list of np.ndarray): List of initial pose translations (3D positions).
-        optimized_poses_list (list of np.ndarray): List of optimized pose translations (3D positions).
-        edges (list of dict): List of edges, where each edge contains "i", "j" for the indices.
-        skip (int, optional): Plot every 'skip' poses (default is 1, which plots all poses).
-    """
+        # Prepare edges for plotting
+        edges_for_plotting = [{"i": edge["from"], "j": edge["to"]} for edge in edges]
 
-    def poses_to_point_cloud(pose_list, color, skip=1):
-        points = [pose for idx, pose in enumerate(pose_list) if idx % skip == 0]
-        points_np = np.array(points)
-
-        # Create Open3D point cloud
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(points_np)
-
-        # Set point colors
-        colors_np = np.tile(color, (points_np.shape[0], 1))
-        pcd.colors = o3d.utility.Vector3dVector(colors_np)
-
-        return pcd
-
-    # Create two point clouds with different colors
-    pcd_initial = poses_to_point_cloud(
-        initial_poses_list, color=[1, 0, 0], skip=skip
-    )  # Red for initial poses
-    pcd_optimized = poses_to_point_cloud(
-        optimized_poses_list, color=[0, 1, 0], skip=skip
-    )  # Green for optimized poses
-
-    # Create lines for edges between poses
-    lines = []
-    line_colors = []
-
-    for edge in edges:
-        from_idx = edge["i"]
-        to_idx = edge["j"]
-
-        # Only plot edges if indices are valid
-        if from_idx < len(optimized_poses_list) and to_idx < len(optimized_poses_list):
-            # Line connects the from and to poses
-            line = [from_idx, to_idx]
-            lines.append(line)
-            line_colors.append([0, 0, 1])  # Blue color for the lines
-
-    # Create Open3D LineSet for the edges
-    if lines:
-        # Creates a LineSet object to represent edges between poses.
-        # Use the points from the optimized poses as vertices
-        line_set = o3d.geometry.LineSet()
-        points = np.array(optimized_poses_list)
-        line_set.points = o3d.utility.Vector3dVector(points)
-        line_set.lines = o3d.utility.Vector2iVector(lines)
-        line_set.colors = o3d.utility.Vector3dVector(line_colors)
-    else:
-        line_set = None
-
-    # Visualize both point clouds, lines, and axes
-    geometries = [pcd_initial, pcd_optimized]
-    if line_set:
-        geometries.append(line_set)
-
-    o3d.visualization.draw_geometries(
-        geometries,
-        zoom=0.8,
-        front=[0, 0, 1],  # top view
-        lookat=initial_poses_list[-1],
-        up=[0, 1, 0],
-    )
+        # Plot the results using Open3D
+        plot_two_poses_with_edges_open3d(
+            initial_positions_list, optimized_positions_list, edges_for_plotting
+        )
 
 
 if __name__ == "__main__":
@@ -851,13 +893,13 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
+    # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/cubicle.g2o"
     # dataset_name = "data/parking-garage.g2o"
     dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
 
     # TODO: these datasets still fail
-    # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o"
 
@@ -866,15 +908,15 @@ if __name__ == "__main__":
     """
 
     cauchy_c = 10.0  # robust kernel size
-    num_processes = 12  # if want to use max, multiprocessing.cpu_count()
-    max_iterations = 10
+    num_processes = 8  # if want to use max, multiprocessing.cpu_count()
+    max_iterations = 50
     use_jacobian_approx_fast = (
         False  # if False, using Symforce-based auto-generated Symbolic Jacobian
     )
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
-        c=cauchy_c,
+        initial_cauchy_c=cauchy_c,
         use_jacobian_approx_fast=use_jacobian_approx_fast,
         num_processes=num_processes,
     )
@@ -892,27 +934,4 @@ if __name__ == "__main__":
     pgo.add_prior(prior_node_idx)
 
     # Optimize poses
-    poses_optimized = pgo.optimize()
-
-    """
-      Visualization
-    """
-    # Prepare data for plotting
-    # Sort the poses based on pose IDs to maintain order
-    sorted_pose_ids = sorted(poses_initial.keys())
-
-    # Extract initial and optimized translations as lists
-    initial_positions_list = [
-        poses_initial[pose_id]["t"] for pose_id in sorted_pose_ids
-    ]
-    optimized_positions_list = [
-        poses_optimized[pose_id]["t"] for pose_id in sorted_pose_ids
-    ]
-
-    # Prepare edges for plotting
-    edges_for_plotting = [{"i": edge["from"], "j": edge["to"]} for edge in edges]
-
-    # Plot the results using Open3D
-    plot_two_poses_with_edges_open3d(
-        initial_positions_list, optimized_positions_list, edges_for_plotting
-    )
+    poses_optimized = pgo.optimize(visual_debug=True)

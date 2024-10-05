@@ -1,0 +1,516 @@
+╰─$ py nano_pgo.py
+
+ Using symforce-based automatically derived symbolic jacobian... (may slow)
+
+Reading (parse) data/sphere2500.g2o ...
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 0: The total cost decreased from 96177.334 to 36386.754  
+ - current lambda is 0.0002000 and cauchy kernel is 10.00  
+ - |delta_x|: 700.5233
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 1: The total cost decreased from 36386.754 to 14632.315  
+ - current lambda is 0.0000400 and cauchy kernel is 10.00  
+ - |delta_x|: 575.4186
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 2: The total cost decreased from 14632.315 to 6348.390  
+ - current lambda is 0.0000080 and cauchy kernel is 10.00  
+ - |delta_x|: 675.5289
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 3: The total cost decreased from 6348.390 to 2021.763  
+ - current lambda is 0.0000016 and cauchy kernel is 10.00  
+ - |delta_x|: 421.0497
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 4: The total cost decreased from 2021.763 to 1238.112  
+ - current lambda is 0.0000003 and cauchy kernel is 10.00  
+ - |delta_x|: 222.5765
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 5: The total cost decreased from 1238.112 to 626.120  
+ - current lambda is 0.0000001 and cauchy kernel is 10.00  
+ - |delta_x|: 384.3691
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 6: The total cost decreased from 626.120 to 345.892  
+ - current lambda is 0.0000001 and cauchy kernel is 10.00  
+ - |delta_x|: 916.9132
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 7: The total cost did not decrease (from 345.892 to 1009.910).  
+ - increase lambda to 0.0000003 and cauchy kernel to 5.00  
+ - |delta_x|: 893.5597
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 8: The total cost decreased from 325.981 to 140.391  
+ - current lambda is 0.0000001 and cauchy kernel is 5.00  
+ - |delta_x|: 420.4337
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 9: The total cost did not decrease (from 140.391 to 2542.809).  
+ - increase lambda to 0.0000003 and cauchy kernel to 2.50  
+ - |delta_x|: 1541.8654
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 10: The total cost decreased from 130.845 to 85.688  
+ - current lambda is 0.0000001 and cauchy kernel is 2.50  
+ - |delta_x|: 421.0799
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 11: The total cost did not decrease (from 85.688 to 3106.350).  
+ - increase lambda to 0.0000003 and cauchy kernel to 1.25  
+ - |delta_x|: 1397.4871
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 12: The total cost decreased from 83.804 to 71.074  
+ - current lambda is 0.0000001 and cauchy kernel is 1.25  
+ - |delta_x|: 371.8885
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 13: The total cost did not decrease (from 71.074 to 1579.411).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 1112.0346
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 14: The total cost decreased from 69.428 to 50.796  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 269.8617
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 15: The total cost did not decrease (from 50.796 to 590.709).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 856.8158
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 16: The total cost decreased from 50.796 to 48.074  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 254.5346
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 17: The total cost did not decrease (from 48.074 to 408.292).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 788.6518
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 18: The total cost decreased from 48.074 to 46.460  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 235.3060
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 19: The total cost did not decrease (from 46.460 to 280.677).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 726.3408
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 20: The total cost decreased from 46.460 to 45.193  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 217.2711
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 21: The total cost did not decrease (from 45.193 to 188.297).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 665.4610
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 22: The total cost decreased from 45.193 to 44.083  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 198.3591
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 23: The total cost did not decrease (from 44.083 to 128.968).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 609.0272
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 24: The total cost decreased from 44.083 to 43.306  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 179.9469
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 25: The total cost did not decrease (from 43.306 to 92.493).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 557.1894
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 26: The total cost decreased from 43.306 to 42.789  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 162.3585
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 27: The total cost did not decrease (from 42.789 to 70.996).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 510.2557
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 28: The total cost decreased from 42.789 to 42.462  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 146.0830
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 29: The total cost did not decrease (from 42.462 to 58.725).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 468.2280
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 30: The total cost decreased from 42.462 to 42.264  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 131.4682
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 31: The total cost did not decrease (from 42.264 to 51.835).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 430.8651
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 32: The total cost decreased from 42.264 to 42.145  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 118.6728
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 33: The total cost did not decrease (from 42.145 to 47.961).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 397.7004
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 34: The total cost decreased from 42.145 to 42.072  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 107.6465
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 35: The total cost did not decrease (from 42.072 to 45.744).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 368.1495
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 36: The total cost decreased from 42.072 to 42.026  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 98.1943
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 37: The total cost did not decrease (from 42.026 to 44.436).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 341.6224
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 38: The total cost decreased from 42.026 to 41.993  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 90.0588
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 39: The total cost did not decrease (from 41.993 to 43.633).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 317.5970
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 40: The total cost decreased from 41.993 to 41.970  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 82.9841
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 41: The total cost did not decrease (from 41.970 to 43.118).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 295.6494
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 42: The total cost decreased from 41.970 to 41.951  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 76.7491
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 43: The total cost did not decrease (from 41.951 to 42.775).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 275.4524
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 44: The total cost decreased from 41.951 to 41.937  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 71.1784
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 45: The total cost did not decrease (from 41.937 to 42.537).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 256.7603
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 46: The total cost decreased from 41.937 to 41.924  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 66.1398
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 47: The total cost did not decrease (from 41.924 to 42.367).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 239.3899
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 48: The total cost decreased from 41.924 to 41.914  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 61.5366
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 49: The total cost did not decrease (from 41.914 to 42.242).  
+ - increase lambda to 0.0000003 and cauchy kernel to 0.62  
+ - |delta_x|: 223.2033
+
+ [build_sparse_system] processing edge 0/4949
+ [build_sparse_system] processing edge 1000/4949
+ [build_sparse_system] processing edge 2000/4949
+ [build_sparse_system] processing edge 3000/4949
+ [build_sparse_system] processing edge 4000/4949
+
+Iteration 50: The total cost decreased from 41.914 to 41.905  
+ - current lambda is 0.0000001 and cauchy kernel is 0.62  
+ - |delta_x|: 57.2990
+
+Converged.
