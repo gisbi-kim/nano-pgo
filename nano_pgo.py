@@ -893,11 +893,11 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/cubicle.g2o"
     # dataset_name = "data/parking-garage.g2o"
     dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
+    # dataset_name = "data/sphere2500.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/input_MITb_g2o.g2o"

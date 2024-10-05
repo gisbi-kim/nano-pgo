@@ -8,6 +8,7 @@
     - scipy for basic rotation functions and sparse matrix containers 
     - sksparse for cholmod and solve function
     - open3d for large-sized point cloud (pose-graph) visualization
+    - (optional) symforce for the auto-generated symbolic Jacobian
 
 ## Preparation (Dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
@@ -35,16 +36,19 @@
     - why sparse solver is necessary (here, we used sksparse.cholmod)
     - why damping is necessary (i.e., LM iterative optimization method)
     - why robust loss is necessary (here, we used Cauchy deweighting)
+    - what are the differences between numerical and symbolic diffs.
+    - how to use symforce APIs. 
     - how to use GTSAM APIs.
     - what is the real-world problems, use-cases, and state-of-the arts
     
+## Symforce-based Auto-generated Jacobians 
+- SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
+- You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`.
+- ![example results 2](docs/comparison_jacobian_modes/parking-garage/summary.png)
+
+
 ## TODO
 - Equipped with better initialization strategies (e.g., rotation averaging) 
-- Use more theoretically accurate or automatically generated Jacobian (e.g., Symforce)
-    - Done! 
-        - but currently slow ...
-    - You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`. 
-        - You need `$ pip install symforce` first. 
 - Detailed teaching materials
 
 ## Acknowledgement 
