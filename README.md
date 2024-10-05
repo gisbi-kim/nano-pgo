@@ -10,7 +10,7 @@
     - open3d for large-sized point cloud (pose-graph) visualization
     - (optional) symforce for the auto-generated symbolic Jacobian
 
-## Preparation (Dependencies)
+## Preparation (dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
     - `$ python3.11 -m venv ~/envs/py311`
     - `$ source ~/envs/py311/bin/activate`
