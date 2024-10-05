@@ -88,54 +88,54 @@
 - Then, next step is to inject (evaluate) the actual values to the symbolic (block of) Jacobian functions, like
 
     ```python
-        def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
-            """
-            Computes the Jacobians for the between factor residual using Symforce symbolic computation.
-        
-            Parameters:
-                pose_i (dict): Dictionary containing rotation vector 'r' and translation 't' for pose i.
-                pose_j (dict): Dictionary containing rotation vector 'r' and translation 't' for pose j.
-                pose_ij_meas (dict): Dictionary containing the measured relative rotation matrix 'R' and translation vector 't'.
-        
-            Returns:
-                Ji (np.ndarray): 6x6 Jacobian matrix with respect to pose i.
-                Jj (np.ndarray): 6x6 Jacobian matrix with respect to pose j.
-        
-            Note: the Ji and Jj should have shapes (6, 6) like:
-                                                |  translation_variable (3-dim), rotation_variable (3-dim) |
-                    cost_func_translation_part  |               *                          *               |
-                    cost_func_rotation_part     |               *                          *               |
-            """
+    def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
+        """
+        Computes the Jacobians for the between factor residual using Symforce symbolic computation.
+    
+        Parameters:
+            pose_i (dict): Dictionary containing rotation vector 'r' and translation 't' for pose i.
+            pose_j (dict): Dictionary containing rotation vector 'r' and translation 't' for pose j.
+            pose_ij_meas (dict): Dictionary containing the measured relative rotation matrix 'R' and translation vector 't'.
+    
+        Returns:
+            Ji (np.ndarray): 6x6 Jacobian matrix with respect to pose i.
+            Jj (np.ndarray): 6x6 Jacobian matrix with respect to pose j.
+    
+        Note: the Ji and Jj should have shapes (6, 6) like:
+                                            |  translation_variable (3-dim), rotation_variable (3-dim) |
+                cost_func_translation_part  |               *                          *               |
+                cost_func_rotation_part     |               *                          *               |
+        """
 
-            substitutions = {
-                sf_ri: sf.V3(pose_i["r"] + epsilon),
-                sf_ti: sf.V3(pose_i["t"] + epsilon),
-                sf_rj: sf.V3(pose_j["r"] + epsilon),
-                sf_tj: sf.V3(pose_j["t"] + epsilon),
-                sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
-                sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
-            }
-        
-            sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
-            sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
-            sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
-            sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
+        substitutions = {
+            sf_ri: sf.V3(pose_i["r"] + epsilon),
+            sf_ti: sf.V3(pose_i["t"] + epsilon),
+            sf_rj: sf.V3(pose_j["r"] + epsilon),
+            sf_tj: sf.V3(pose_j["t"] + epsilon),
+            sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
+            sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
+        }
+    
+        sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
+        sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
+        sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
+        sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
 
-            # ps. the reason why the index 3: mapped to :3
-            # is because this example uses [t, r], but symforce uses the order of [r, t]
-            sf_Ji = np.zeros((6, 6))
-            sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
-            sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
-            sf_Ji[:3, 3:] = sf_J_ri_val[3:, :]
-            sf_Ji[3:, 3:] = sf_J_ri_val[:3, :]
+        # ps. the reason why the index 3: mapped to :3
+        # is because this example uses [t, r], but symforce uses the order of [r, t]
+        sf_Ji = np.zeros((6, 6))
+        sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
+        sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
+        sf_Ji[:3, 3:] = sf_J_ri_val[3:, :]
+        sf_Ji[3:, 3:] = sf_J_ri_val[:3, :]
 
-            sf_Jj = np.zeros((6, 6))
-            sf_Jj[:3, :3] = sf_J_tj_val[3:, :]
-            sf_Jj[3:, :3] = sf_J_tj_val[:3, :]
-            sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
-            sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
+        sf_Jj = np.zeros((6, 6))
+        sf_Jj[:3, :3] = sf_J_tj_val[3:, :]
+        sf_Jj[3:, :3] = sf_J_tj_val[:3, :]
+        sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
+        sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
 
-            return sf_Ji, sf_Jj
+        return sf_Ji, sf_Jj
     ```
 
 ## TODO
