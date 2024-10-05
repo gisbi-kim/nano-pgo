@@ -41,6 +41,10 @@
 ## TODO
 - Equipped with better initialization strategies (e.g., rotation averaging) 
 - Use more theoretically accurate or automatically generated Jacobian (e.g., Symforce)
+    - Done! 
+        - but currently slow ...
+    - You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`. 
+        - You need `$ pip install symforce` first. 
 - Detailed teaching materials
 
 ## Acknowledgement 
