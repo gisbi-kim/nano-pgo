@@ -24,7 +24,7 @@
 
 ## How to use 
 - `$ python nano_pgo.py`
-- It's also recommended to compare the results from GTSAM (better and faster!) by using `baseline_gtsam.py`.
+    - It's also recommended to compare the results from GTSAM (better and faster!) by using `baseline_gtsam.py`.
 - Note that the nano_pgo.py's goal is a maximized transparency of all logics and theories from state representations to building and solving linear systems.
 
 ## Goal 
