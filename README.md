@@ -1,14 +1,16 @@
 # nano-pgo
  ![example results](docs/results/visualization/readme.png)
-- For an education purpose
-- From-scratch pose-graph optimization implementation
-- A single file
-- Miminum dependencies: numpy/scipy/sksparse (and open3d for visualization).
-    - numpy for basic matrix handling 
-    - scipy for basic rotation functions and sparse matrix containers 
-    - sksparse for cholmod and solve function
-    - open3d for large-sized point cloud (pose-graph) visualization
-    - (optional) symforce for the auto-generated symbolic Jacobian
+- Features 
+    - For an education purpose
+    - From-scratch pose-graph optimization implementation
+    - A single file
+    - Miminum dependencies: numpy/scipy/sksparse (and open3d for visualization).
+        - numpy for basic matrix handling 
+        - scipy for basic rotation functions and sparse matrix containers 
+        - (optional) symforce for the auto-generated symbolic Jacobian
+        - sksparse for cholmod and solve function
+        - open3d for large-sized point cloud (pose-graph) visualization
+- ps. This tutorial supports only batch pose-graph optimization (but with a sparse solver!) and does not cover incrementally expanding pose-graph optimization (e.g., iSAM).
 
 ## Preparation (dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
