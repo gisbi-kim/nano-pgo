@@ -164,7 +164,6 @@ def compute_between_factor_residual_and_jacobian(
     Ri_inv = Ri.T
     Rij_pred = Ri_inv @ Rj
     tij_pred = Ri_inv @ (tj - ti)
-    Rj_Ri_inv = Rj @ Ri_inv
 
     # Error in rotation and translation
     R_err = Rij_meas.T @ Rij_pred
@@ -179,14 +178,14 @@ def compute_between_factor_residual_and_jacobian(
         Ji = np.zeros((6, 6))
         Ji[:3, :3] = -Rij_meas.T @ Ri_inv
         Ji[:3, 3:] = Rij_meas.T @ Ri_inv @ skew_symmetric(tj - ti)
-        # aprox, valid for small angle differecne (may differ at the early iterations wrt the symforce version)
-        Ji[3:, 3:] = -np.eye(3)
+        Ji[3:, 3:] = -np.eye(3)  # approx
 
         # Jacobian w.r. to pose j
         Jj = np.zeros((6, 6))
         Jj[:3, :3] = Rij_meas.T @ Ri_inv
-        # aprox, valid for small angle differecne (may differ at the early iterations wrt the symforce version)
-        Jj[3:, 3:] = np.eye(3)
+        Jj[3:, 3:] = np.eye(3)  # approx
+
+        # the above approximations are valid for small angle differecne (may differ at the early iterations wrt the symforce version)
 
         return Ji, Jj
 
@@ -218,10 +217,11 @@ def compute_between_factor_residual_and_jacobian(
 
 
 class PoseGraphOptimizer:
-    def __init__(self, max_iterations, c, use_jacobian_approx_fast):
+    def __init__(self, max_iterations, c, use_jacobian_approx_fast, num_processes=1):
         self.STATE_DIM = 6
 
         self.max_iterations = max_iterations
+        self.num_processes = num_processes
 
         # jacobian mode
         self.use_jacobian_approx_fast = use_jacobian_approx_fast  # if False, using Symforce-based auto-generated Symbolic Jacobian
@@ -482,8 +482,8 @@ class PoseGraphOptimizer:
 
     def build_sparse_system(self, edges):
 
-        # 첫 번째 스텝: H와 b의 각 요소들을 계산
-        # Prepare data for parallel processing
+        # First step: Calculate each element of H and b
+        #  Prepare data for parallel processing
         edge_data_list = [
             (
                 ii,
@@ -495,10 +495,10 @@ class PoseGraphOptimizer:
             )
             for ii, edge in enumerate(edges)
         ]
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        with multiprocessing.Pool(processes=self.num_processes) as pool:
             results = pool.map(self.process_edge, edge_data_list)
 
-        # 두 번째 스텝: H와 b를 조립 with for loop
+        # Second step: Assemble H and b with a for loop
         H_row = []
         H_col = []
         H_data = []
@@ -779,17 +779,6 @@ def plot_two_poses_with_edges_open3d(
     """
 
     def poses_to_point_cloud(pose_list, color, skip=1):
-        """
-        Converts a list of poses to an Open3D point cloud.
-
-        Parameters:
-            pose_list (list of np.ndarray): List of pose translations.
-            color (list of float): RGB color for the point cloud.
-            skip (int, optional): Plot every 'skip' poses.
-
-        Returns:
-            pcd (o3d.geometry.PointCloud): Open3D point cloud.
-        """
         points = [pose for idx, pose in enumerate(pose_list) if idx % skip == 0]
         points_np = np.array(points)
 
@@ -876,11 +865,18 @@ if __name__ == "__main__":
       Pose-graph optimization
     """
 
-    # if False, using Symforce-based auto-generated Symbolic Jacobian
-    use_jacobian_approx_fast = True
+    cauchy_c = 10.0  # robust kernel size
+    num_processes = 12  # if want to use max, multiprocessing.cpu_count()
+    max_iterations = 10
+    use_jacobian_approx_fast = (
+        False  # if False, using Symforce-based auto-generated Symbolic Jacobian
+    )
 
     pgo = PoseGraphOptimizer(
-        max_iterations=10, c=10.0, use_jacobian_approx_fast=use_jacobian_approx_fast
+        max_iterations=max_iterations,
+        c=cauchy_c,
+        use_jacobian_approx_fast=use_jacobian_approx_fast,
+        num_processes=num_processes,
     )
 
     # read data
