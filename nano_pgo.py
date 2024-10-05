@@ -1,4 +1,6 @@
 import numpy as np
+
+np.set_printoptions(linewidth=np.inf, suppress=True, precision=4)
 from scipy.spatial.transform import Rotation
 
 import scipy.sparse as sp
@@ -6,8 +8,6 @@ import sksparse.cholmod as cholmod
 
 import open3d as o3d
 import matplotlib.pyplot as plt
-
-epsilon = 0.00001
 
 
 def quaternion_to_rotation(qx, qy, qz, qw):
@@ -86,14 +86,91 @@ def skew_symmetric(v):
     return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
 
-def compute_between_factor_residual_and_jacobian(pose_i, pose_j, measurement):
+def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
+    import symforce.symbolic as sf
+    from symforce.ops import LieGroupOps
+
+    epsilon = 1e-7
+
+    # 회전 변수 정의 (각 축 회전 벡터)
+    sf_ri = sf.V3.symbolic("ri")  # pose_i의 회전
+    sf_rj = sf.V3.symbolic("rj")  # pose_j의 회전
+    sf_rij = sf.V3.symbolic("rij")  # 측정된 상대 회전
+
+    # 병진 변수 정의
+    sf_ti = sf.V3.symbolic("ti")  # pose_i의 병진
+    sf_tj = sf.V3.symbolic("tj")  # pose_j의 병진
+    sf_tij = sf.V3.symbolic("tij")  # 측정된 상대 병진
+
+    # Lie Group Operations을 사용하여 회전 행렬 생성
+    sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
+    sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
+    sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
+
+    # 병진 오차 계산
+    # T_err = T_ij^{-1} * (T_i^{-1} * T_j)
+    # symforce의 SE3 연산을 사용하여 병진 오차 계산
+    sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
+    sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
+    sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
+
+    # SE3 오차: T_err = T_ij^{-1} * T_i^{-1} * T_j
+    sf_T_err = sf_Tij.inverse() * (sf_Ti.inverse() * sf_Tj)
+
+    # SE3 오차를 tangent 벡터로 변환 (6D: 3 for rotation, 3 for translation)
+    sf_se3_err = sf.Matrix(sf_T_err.to_tangent())
+
+    # Residual을 회전 및 병진 오차로 정의
+    sf_residual = sf_se3_err  # 6D 벡터
+
+    # 전체 Jacobian 계산
+    sf_J_ti = sf_residual.jacobian([sf_ti])  # 6 x 3
+    sf_J_ri = sf_residual.jacobian([sf_ri])  # 6 x 3
+    sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
+    sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
+
+    # substitutions 딕셔너리 생성
+    substitutions = {
+        sf_ri: sf.V3(pose_i["r"] + epsilon),
+        sf_ti: sf.V3(pose_i["t"] + epsilon),
+        sf_rj: sf.V3(pose_j["r"] + epsilon),
+        sf_tj: sf.V3(pose_j["t"] + epsilon),
+        sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
+        sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
+    }
+
+    sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
+    sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
+    sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
+    sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
+
+    # ps. the reasonn why the index 3: mapped to :3
+    #  because this example use the [t, r], but the symforce use the order of [r, t]
+    sf_Ji = np.zeros((6, 6))
+    sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
+    sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
+    sf_Ji[:3, 3:] = sf_J_ri_val[3:, :]
+    sf_Ji[3:, 3:] = sf_J_ri_val[:3, :]
+
+    sf_Jj = np.zeros((6, 6))
+    sf_Jj[:3, :3] = sf_J_tj_val[3:, :]
+    sf_Jj[3:, :3] = sf_J_tj_val[:3, :]
+    sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
+    sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
+
+    return sf_Ji, sf_Jj
+
+
+def compute_between_factor_residual_and_jacobian(
+    pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast=True
+):
     """
     Computes the residual and Jacobians for a pair of poses given a measurement.
 
     Parameters:
         pose_i (dict): Dictionary containing rotation vector 'r' and translation 't' for pose i.
         pose_j (dict): Dictionary containing rotation vector 'r' and translation 't' for pose j.
-        measurement (dict): Dictionary containing rotation matrix 'R' and translation 't' from the measurement.
+        pose_ij_meas (dict): Dictionary containing rotation matrix 'R' and translation 't' from the measurement.
 
     Returns:
         residual (np.ndarray): 6-element residual vector.
@@ -109,12 +186,13 @@ def compute_between_factor_residual_and_jacobian(pose_i, pose_j, measurement):
     Rj = rotvec_to_rotmat(rj)
 
     # Measurement
-    Rij_meas, tij_meas = measurement["R"], measurement["t"]
+    Rij_meas, tij_meas = pose_ij_meas["R"], pose_ij_meas["t"]
 
     # Predicted relative transformation
     Ri_inv = Ri.T
     Rij_pred = Ri_inv @ Rj
     tij_pred = Ri_inv @ (tj - ti)
+    Rj_Ri_inv = Rj @ Ri_inv
 
     # Error in rotation and translation
     R_err = Rij_meas.T @ Rij_pred
@@ -124,18 +202,39 @@ def compute_between_factor_residual_and_jacobian(pose_i, pose_j, measurement):
     r_err = rotmat_to_rotvec(R_err)
     residual = np.hstack((t_err, r_err))
 
-    # Compute Jacobians analytically
-    I33 = np.eye(3)
-    # Jacobian w.r. to pose i
-    Ji = np.zeros((6, 6))
-    Ji[:3, :3] = -Rij_meas.T @ Ri_inv
-    Ji[:3, 3:] = Rij_meas.T @ Ri_inv @ skew_symmetric(tj - ti)
-    Ji[3:, 3:] = -I33  # TODO: derive a more accurate one, not this approx one.
+    def between_factor_jacobian_by_hand_approx():
+        # Jacobian w.r. to pose i
+        Ji = np.zeros((6, 6))
+        Ji[:3, :3] = -Rij_meas.T @ Ri_inv
+        Ji[:3, 3:] = Rij_meas.T @ Ri_inv @ skew_symmetric(tj - ti)
+        # aprox, valid for small angle differecne (may differ at the early iterations wrt the symforce version)
+        Ji[3:, 3:] = -np.eye(3)
 
-    # Jacobian w.r. to pose j
-    Jj = np.zeros((6, 6))
-    Jj[:3, :3] = Rij_meas.T @ Ri_inv
-    Jj[3:, 3:] = I33  # TODO: derive a more accurate one, not this approx one.
+        # Jacobian w.r. to pose j
+        Jj = np.zeros((6, 6))
+        Jj[:3, :3] = Rij_meas.T @ Ri_inv
+        # aprox, valid for small angle differecne (may differ at the early iterations wrt the symforce version)
+        Jj[3:, 3:] = np.eye(3)
+
+        return Ji, Jj
+
+    # Compute Jacobians analytically
+    if use_jacobian_approx_fast:
+        Ji, Jj = between_factor_jacobian_by_hand_approx()
+    else:
+        Ji, Jj = between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas)
+
+    debug_compare_jacobians = False
+    if debug_compare_jacobians:
+        by_hand_Ji, by_hand_Jj = between_factor_jacobian_by_hand_approx()
+        by_symb_Ji, by_symb_Jj = between_factor_jacobian_by_symforce(
+            pose_i, pose_j, pose_ij_meas
+        )
+        print("=" * 30) 
+        print(f"by_hand_Ji\n {by_hand_Ji}")
+        print(f"by_symbolic_Ji\n {by_symb_Ji}\n")
+        print(f"by_hand_Jj\n {by_hand_Jj}")
+        print(f"by_symbolic_Jj\n {by_symb_Jj}\n\n")
 
     return residual, Ji, Jj
 
@@ -145,6 +244,13 @@ class PoseGraphOptimizer:
         self.STATE_DIM = 6
 
         self.max_iterations = max_iterations
+
+        # jacobian mode
+        self.use_jacobian_approx_fast = True
+        if not self.use_jacobian_approx_fast:
+            print(
+                "\n Using symforce-based automatically derived symbolic jacobian... (may slow)\n"
+            )
 
         # Robust loss
         self.c = c  # cauchy kernel
@@ -162,6 +268,7 @@ class PoseGraphOptimizer:
 
         # misc
         self.H_fig_saved = False
+        self.loud_verbose = True
 
     def read_g2o_file(self, file_path):
         """
@@ -295,6 +402,7 @@ class PoseGraphOptimizer:
         return poses, edges
 
     def cauchy_weight(self, s):
+        epsilon = 1e-5
         return self.c / (np.sqrt(self.c**2 + s) + epsilon)
 
     def initialize_variables_container(self, index_map):
@@ -350,7 +458,10 @@ class PoseGraphOptimizer:
         total_error = 0
 
         # edges
-        for edge in edges:
+        for ii, edge in enumerate(edges):
+            if self.loud_verbose and (ii % 500 == 0):
+                print(f" [build_sparse_system] processing edge {ii}/{len(edges)}")
+
             idx_i = self.index_map[edge["from"]]
             idx_j = self.index_map[edge["to"]]
 
@@ -361,12 +472,12 @@ class PoseGraphOptimizer:
             pose_i = {"t": xi[:3], "r": xi[3:]}
             pose_j = {"t": xj[:3], "r": xj[3:]}
 
-            measurement = {"R": edge["R"], "t": edge["t"]}
+            pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
             information_edge = edge["information"]
 
             # Compute residual and Jacobians
             residual, Ji, Jj = compute_between_factor_residual_and_jacobian(
-                pose_i, pose_j, measurement
+                pose_i, pose_j, pose_ij_meas, self.use_jacobian_approx_fast
             )
 
             # Check if edge is non-consecutive (loop closure)
@@ -523,12 +634,12 @@ class PoseGraphOptimizer:
             pose_i = {"t": xi[:3], "r": xi[3:]}
             pose_j = {"t": xj[:3], "r": xj[3:]}
 
-            measurement = {"R": edge["R"], "t": edge["t"]}
+            pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
             information = edge["information"]
 
             # Compute residual
             residual, _, _ = compute_between_factor_residual_and_jacobian(
-                pose_i, pose_j, measurement
+                pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast=True
             )
 
             # Apply Cauchy robust kernel if consecutive
@@ -567,7 +678,7 @@ class PoseGraphOptimizer:
                 f"\nIteration {iteration}: The total cost",
                 f"decreased from {error_before_opt:.3f} to {error_after_opt:.3f}",
                 f" \n - current lambda is {self.lambda_:.7f} and cauchy kernel is {self.c:.2f}",
-                f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}",
+                f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
         else:
             # tune params
@@ -581,7 +692,7 @@ class PoseGraphOptimizer:
                 f"\nIteration {iteration}: The total cost did not decrease (from",
                 f"{error_before_opt:.3f} to {error_after_opt:.3f}).",
                 f" \n - increase lambda to {self.lambda_:.7f} and cauchy kernel to {self.c:.2f}",
-                f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}",
+                f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
 
     def process_single_iteration(self, iteration):
@@ -748,8 +859,8 @@ if __name__ == "__main__":
     # Successed datasets
     # dataset_name = "data/cubicle.g2o"
     # dataset_name = "data/parking-garage.g2o"
-    # dataset_name = "data/input_INTEL_g2o.g2o"
-    dataset_name = "data/input_M3500_g2o.g2o"
+    dataset_name = "data/input_INTEL_g2o.g2o"
+    # dataset_name = "data/input_M3500_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/sphere2500.g2o"
