@@ -49,6 +49,9 @@
 - You can first build (compile) the Jacobian of the relative SE(3) error like this,
 
     ```python
+    import symforce.symbolic as sf
+    from symforce.ops import LieGroupOps
+
     # Define rotation variables (rotation vectors for each axis)
     sf_ri = sf.V3.symbolic("ri")  # Rotation of pose_i
     sf_rj = sf.V3.symbolic("rj")  # Rotation of pose_j
