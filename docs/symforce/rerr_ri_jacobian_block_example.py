@@ -13,7 +13,7 @@ def evaluate_jacobian(pose_i, pose_j, pose_ij_meas)
     sf_rj   = sf.V3.symbolic("rj") # i.e., angle-axis parametrization
     sf_Rj   = LieGroupOps.from_tangent(sf.Rot3, sf_rj) 
 
-    sf_rij = sf.V3.symbolic("rij")
+    sf_rij   = sf.V3.symbolic("rij")
     sf_Rij   = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
 
     sf_R_err = sf_Rij.inverse() * sf_Ri.inverse() * sf_Rj
