@@ -787,7 +787,7 @@ class PoseGraphOptimizer:
             )
 
     def process_single_iteration(self, iteration):
-        # build and solve the system
+        # Build and solve the system
         H, b, total_error = self.build_sparse_system(self.edges)
         if not self.H_fig_saved:
             self.plot_H_matrix(H, self.dataset_name)
@@ -797,18 +797,18 @@ class PoseGraphOptimizer:
         # Update poses
         x_new = self.x + delta_x
 
-        # evaluate the error direction
+        # Evaluate the error direction
         total_error_after_iter_opt = self.evaluate_error_changes(x_new)
 
         # Conditionally Accept the update
         self.x = x_new if total_error_after_iter_opt < total_error else self.x
 
-        # for LM step adjustment
+        # Run-time adjustment of LM parameter and Cauchy kernel size
         self.adjust_parameters(
             iteration, delta_x, total_error, total_error_after_iter_opt
         )
 
-        # visualize this iterations's result
+        # Visualize this iterations's result
         self.visualize_3d_poses(self.get_optimized_poses())
 
         # Check for convergence
