@@ -9,34 +9,15 @@ import sksparse.cholmod as cholmod
 import open3d as o3d
 import matplotlib.pyplot as plt
 
+import multiprocessing
+
 
 def quaternion_to_rotation(qx, qy, qz, qw):
-    """
-    Converts a quaternion to a rotation matrix.
-
-    Parameters:
-        qx, qy, qz, qw (float): Quaternion components.
-
-    Returns:
-        R (np.ndarray): 3x3 rotation matrix.
-    """
     rotation = Rotation.from_quat([qx, qy, qz, qw])
     return rotation.as_matrix()
 
 
 def se2_to_se3(x, y, theta):
-    """
-    Converts SE2 parameters to SE3 rotation matrix and translation vector.
-
-    Parameters:
-        x (float): Translation along the X-axis.
-        y (float): Translation along the Y-axis.
-        theta (float): Rotation around the Z-axis.
-
-    Returns:
-        R (np.ndarray): 3x3 rotation matrix for rotation about Z-axis by theta.
-        t (np.ndarray): 3-element translation vector with z=0.
-    """
     rotation = Rotation.from_euler("z", theta)
     R = rotation.as_matrix()
     t = np.array([x, y, 0.0])
@@ -44,92 +25,83 @@ def se2_to_se3(x, y, theta):
 
 
 def rotmat_to_rotvec(R):
-    """
-    Converts a rotation matrix to a rotation vector.
-
-    Parameters:
-        R (np.ndarray): 3x3 rotation matrix.
-
-    Returns:
-        rotvec (np.ndarray): Rotation vector.
-    """
     rotation = Rotation.from_matrix(R)
     rotvec = rotation.as_rotvec()
     return rotvec
 
 
 def rotvec_to_rotmat(rotvec):
-    """
-    Converts a rotation vector to a rotation matrix.
-
-    Parameters:
-        rotvec (np.ndarray): Rotation vector.
-
-    Returns:
-        R (np.ndarray): 3x3 rotation matrix.
-    """
     rotation = Rotation.from_rotvec(rotvec)
     R = rotation.as_matrix()
     return R
 
 
 def skew_symmetric(v):
-    """
-    Generates a skew-symmetric matrix from a vector.
-
-    Parameters:
-        v (np.ndarray): 3-element vector.
-
-    Returns:
-        skew (np.ndarray): 3x3 skew-symmetric matrix.
-    """
     return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
 
 def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
+    """
+    Computes the Jacobians for the between factor residual using Symforce symbolic computation.
+
+    Parameters:
+        pose_i (dict): Dictionary containing rotation vector 'r' and translation 't' for pose i.
+        pose_j (dict): Dictionary containing rotation vector 'r' and translation 't' for pose j.
+        pose_ij_meas (dict): Dictionary containing the measured relative rotation matrix 'R' and translation vector 't'.
+
+    Returns:
+        Ji (np.ndarray): 6x6 Jacobian matrix with respect to pose i.
+        Jj (np.ndarray): 6x6 Jacobian matrix with respect to pose j.
+
+    Note: the Ji and Jj should have shapes (6, 6) like:
+                                        |  translation_variable (3-dim), rotation_variable (3-dim) |
+            cost_func_translation_part  |               *                          *               |
+            cost_func_rotation_part     |               *                          *               |
+    """
+
     import symforce.symbolic as sf
     from symforce.ops import LieGroupOps
 
     epsilon = 1e-7
 
-    # 회전 변수 정의 (각 축 회전 벡터)
-    sf_ri = sf.V3.symbolic("ri")  # pose_i의 회전
-    sf_rj = sf.V3.symbolic("rj")  # pose_j의 회전
-    sf_rij = sf.V3.symbolic("rij")  # 측정된 상대 회전
+    # Define rotation variables (rotation vectors for each axis)
+    sf_ri = sf.V3.symbolic("ri")  # Rotation of pose_i
+    sf_rj = sf.V3.symbolic("rj")  # Rotation of pose_j
+    sf_rij = sf.V3.symbolic("rij")  # Measured relative rotation
 
-    # 병진 변수 정의
-    sf_ti = sf.V3.symbolic("ti")  # pose_i의 병진
-    sf_tj = sf.V3.symbolic("tj")  # pose_j의 병진
-    sf_tij = sf.V3.symbolic("tij")  # 측정된 상대 병진
+    # Define translation variables
+    sf_ti = sf.V3.symbolic("ti")  # Translation of pose_i
+    sf_tj = sf.V3.symbolic("tj")  # Translation of pose_j
+    sf_tij = sf.V3.symbolic("tij")  # Measured relative translation
 
-    # Lie Group Operations을 사용하여 회전 행렬 생성
+    # Create rotation matrices using Lie Group operations
     sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
     sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
     sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
 
-    # 병진 오차 계산
+    # Calculate translation error
     # T_err = T_ij^{-1} * (T_i^{-1} * T_j)
-    # symforce의 SE3 연산을 사용하여 병진 오차 계산
+    # Using SE3 operations in symforce to compute translation error
     sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
     sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
     sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
 
-    # SE3 오차: T_err = T_ij^{-1} * T_i^{-1} * T_j
+    # SE3 error: T_err = T_ij^{-1} * T_i^{-1} * T_j
     sf_T_err = sf_Tij.inverse() * (sf_Ti.inverse() * sf_Tj)
 
-    # SE3 오차를 tangent 벡터로 변환 (6D: 3 for rotation, 3 for translation)
+    # Convert SE3 error to a tangent vector (6D: 3 for rotation, 3 for translation)
     sf_se3_err = sf.Matrix(sf_T_err.to_tangent())
 
-    # Residual을 회전 및 병진 오차로 정의
-    sf_residual = sf_se3_err  # 6D 벡터
+    # Define residual as the rotation and translation error
+    sf_residual = sf_se3_err  # 6D vector
 
-    # 전체 Jacobian 계산
+    # Compute the full Jacobian
     sf_J_ti = sf_residual.jacobian([sf_ti])  # 6 x 3
     sf_J_ri = sf_residual.jacobian([sf_ri])  # 6 x 3
     sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
     sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
-    # substitutions 딕셔너리 생성
+    # Create the substitutions dictionary
     substitutions = {
         sf_ri: sf.V3(pose_i["r"] + epsilon),
         sf_ti: sf.V3(pose_i["t"] + epsilon),
@@ -144,8 +116,8 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
     sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
 
-    # ps. the reasonn why the index 3: mapped to :3
-    #  because this example use the [t, r], but the symforce use the order of [r, t]
+    # ps. the reason why the index 3: mapped to :3
+    # is because this example uses [t, r], but symforce uses the order of [r, t]
     sf_Ji = np.zeros((6, 6))
     sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
     sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
@@ -227,10 +199,16 @@ def compute_between_factor_residual_and_jacobian(
     debug_compare_jacobians = False
     if debug_compare_jacobians:
         by_hand_Ji, by_hand_Jj = between_factor_jacobian_by_hand_approx()
+
+        import time
+
+        start_time = time.perf_counter()
         by_symb_Ji, by_symb_Jj = between_factor_jacobian_by_symforce(
             pose_i, pose_j, pose_ij_meas
         )
-        print("=" * 30) 
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print("=" * 30)
         print(f"by_hand_Ji\n {by_hand_Ji}")
         print(f"by_symbolic_Ji\n {by_symb_Ji}\n")
         print(f"by_hand_Jj\n {by_hand_Jj}")
@@ -240,13 +218,13 @@ def compute_between_factor_residual_and_jacobian(
 
 
 class PoseGraphOptimizer:
-    def __init__(self, max_iterations, c):
+    def __init__(self, max_iterations, c, use_jacobian_approx_fast):
         self.STATE_DIM = 6
 
         self.max_iterations = max_iterations
 
         # jacobian mode
-        self.use_jacobian_approx_fast = True
+        self.use_jacobian_approx_fast = use_jacobian_approx_fast  # if False, using Symforce-based auto-generated Symbolic Jacobian
         if not self.use_jacobian_approx_fast:
             print(
                 "\n Using symforce-based automatically derived symbolic jacobian... (may slow)\n"
@@ -282,6 +260,8 @@ class PoseGraphOptimizer:
             edges (list): List of edges, where each edge is a dictionary containing 'from', 'to', rotation matrix 'R', translation vector 't', and 'information' matrix.
         """
         self.dataset_name = file_path.split("/")[-1]
+
+        print(f"Reading (parse) {file_path} ...")
 
         poses = {}
         edges = []
@@ -449,89 +429,114 @@ class PoseGraphOptimizer:
         # assumption: odom edges have consecutive indices
         return abs(id_to - id_from) == 1
 
+    def process_edge(self, edge_data):
+        ii, edge, index_map, x, STATE_DIM, use_jacobian_approx_fast = edge_data
+
+        if self.loud_verbose and (ii % 1000 == 0):
+            print(f" [build_sparse_system] processing edge {ii}/{len(edges)}")
+
+        idx_i = index_map[edge["from"]]
+        idx_j = index_map[edge["to"]]
+
+        # Extract poses
+        xi = self.get_state_block(x, idx_i)
+        xj = self.get_state_block(x, idx_j)
+
+        pose_i = {"t": xi[:3], "r": xi[3:]}
+        pose_j = {"t": xj[:3], "r": xj[3:]}
+
+        pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
+        information_edge = edge["information"]
+
+        # Compute residual and Jacobians
+        residual, Ji, Jj = compute_between_factor_residual_and_jacobian(
+            pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast
+        )
+
+        # Check if edge is non-consecutive (loop closure)
+        if not self.nodes_are_consecutive(edge["from"], edge["to"]):
+            # For loop closure edges, robust kernel is applied
+            s = residual.T @ information_edge @ residual
+            weight = self.cauchy_weight(s)
+        else:
+            # for odom edges, no robust loss
+            weight = 1.0
+
+        # Deweighting
+        residual *= weight
+        Ji *= weight
+        Jj *= weight
+
+        # Accumulate error
+        total_error = residual.T @ information_edge @ residual
+
+        # Assemble H and b components
+        Hii = Ji.T @ information_edge @ Ji
+        Hjj = Jj.T @ information_edge @ Jj
+        Hij = Ji.T @ information_edge @ Jj
+
+        bi = Ji.T @ information_edge @ residual
+        bj = Jj.T @ information_edge @ residual
+
+        return (idx_i, idx_j, Hii, Hjj, Hij, bi, bj, total_error)
+
     def build_sparse_system(self, edges):
-        # linear system containers
-        H_data = []
+
+        # 첫 번째 스텝: H와 b의 각 요소들을 계산
+        # Prepare data for parallel processing
+        edge_data_list = [
+            (
+                ii,
+                edge,
+                self.index_map,
+                self.x,
+                self.STATE_DIM,
+                self.use_jacobian_approx_fast,
+            )
+            for ii, edge in enumerate(edges)
+        ]
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            results = pool.map(self.process_edge, edge_data_list)
+
+        # 두 번째 스텝: H와 b를 조립 with for loop
         H_row = []
         H_col = []
-        b = np.zeros(self.STATE_DIM * self.num_poses)
-        total_error = 0
+        H_data = []
+        b = np.zeros(self.STATE_DIM * len(self.index_map))
+        total_error = 0.0
 
-        # edges
-        for ii, edge in enumerate(edges):
-            if self.loud_verbose and (ii % 500 == 0):
-                print(f" [build_sparse_system] processing edge {ii}/{len(edges)}")
+        for result in results:
+            idx_i, idx_j, Hii, Hjj, Hij, bi, bj, edge_error = result
 
-            idx_i = self.index_map[edge["from"]]
-            idx_j = self.index_map[edge["to"]]
+            # Accumulate total error
+            total_error += edge_error
 
-            # Extract poses
-            xi = self.get_state_block(self.x, idx_i)
-            xj = self.get_state_block(self.x, idx_j)
-
-            pose_i = {"t": xi[:3], "r": xi[3:]}
-            pose_j = {"t": xj[:3], "r": xj[3:]}
-
-            pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
-            information_edge = edge["information"]
-
-            # Compute residual and Jacobians
-            residual, Ji, Jj = compute_between_factor_residual_and_jacobian(
-                pose_i, pose_j, pose_ij_meas, self.use_jacobian_approx_fast
-            )
-
-            # Check if edge is non-consecutive (loop closure)
-            if not self.nodes_are_consecutive(edge["from"], edge["to"]):
-                # For loop closure edges, robust kernel is applied
-                s = residual.T @ information_edge @ residual
-                weight = self.cauchy_weight(s)
-            else:
-                # for odom edges, no robust loss
-                weight = 1.0
-
-            # deweighting
-            #  ref: 1997, Zhang, Zhengyou. "Parameter estimation techniques: A tutorial with application to conic fitting."
-            residual *= weight
-            Ji *= weight
-            Jj *= weight
-
-            # Accumulate error
-            total_error += residual.T @ information_edge @ residual
-
-            # Assemble H and b
-            Hii = Ji.T @ information_edge @ Ji
-            Hjj = Jj.T @ information_edge @ Jj
-            Hij = Ji.T @ information_edge @ Jj
-
-            bi = Ji.T @ information_edge @ residual
-            bj = Jj.T @ information_edge @ residual
-
-            # Construct sparse matrix entries
-            # H_ii
+            # Hii
             for i in range(self.STATE_DIM):
                 for j in range(self.STATE_DIM):
                     H_row.append((self.STATE_DIM * idx_i) + i)
                     H_col.append((self.STATE_DIM * idx_i) + j)
                     H_data.append(Hii[i, j])
 
-            # H_jj
+            # Hjj
             for i in range(self.STATE_DIM):
                 for j in range(self.STATE_DIM):
                     H_row.append(self.STATE_DIM * idx_j + i)
                     H_col.append(self.STATE_DIM * idx_j + j)
                     H_data.append(Hjj[i, j])
 
-            # H_ij and H_ji
+            # Hij and Hji
             for i in range(self.STATE_DIM):
                 for j in range(self.STATE_DIM):
-                    # H_ij
+                    # Hij
                     H_row.append(self.STATE_DIM * idx_i + i)
                     H_col.append(self.STATE_DIM * idx_j + j)
                     H_data.append(Hij[i, j])
-                    # H_ji
+
+                    # Hji
                     H_row.append(self.STATE_DIM * idx_j + i)
                     H_col.append(self.STATE_DIM * idx_i + j)
-                    H_data.append(Hij[j, i])  # Note the transpose
+                    H_data.append(Hij[j, i])  # Transpose
 
             # b_i and b_j
             b[
@@ -718,7 +723,7 @@ class PoseGraphOptimizer:
         )
 
         # Check for convergence
-        if np.abs(total_error - total_error_after_iter_opt) < 1e-3:
+        if np.abs(total_error - total_error_after_iter_opt) < 1e-1:
             print("Converged.")
             termination_flag = True
             return termination_flag
@@ -870,7 +875,13 @@ if __name__ == "__main__":
     """
       Pose-graph optimization
     """
-    pgo = PoseGraphOptimizer(max_iterations=10, c=10.0)
+
+    # if False, using Symforce-based auto-generated Symbolic Jacobian
+    use_jacobian_approx_fast = True
+
+    pgo = PoseGraphOptimizer(
+        max_iterations=10, c=10.0, use_jacobian_approx_fast=use_jacobian_approx_fast
+    )
 
     # read data
     poses_initial, edges = pgo.read_g2o_file(dataset_name)
