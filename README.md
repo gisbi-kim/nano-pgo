@@ -5,13 +5,16 @@
 - Features 
     - For an education purpose
     - From-scratch pose-graph optimization implementation
+        - This tried to maximize the code-level transparency of the process of generating the H and b matrices, building a linear system, and controlling the LM iterations.
     - A single file
-    - Miminum dependencies: numpy/scipy/sksparse (and open3d for visualization).
+    - Miminum dependencies: numpy/scipy/symforce/sksparse (and open3d for visualization).
         - numpy for basic matrix handling 
         - scipy for basic rotation functions and sparse matrix containers 
-        - (optional) symforce for the auto-generated symbolic Jacobian
+        - symforce for the auto-generated symbolic Jacobian (optional)
         - sksparse for cholmod and solve function
         - open3d for large-sized point cloud (pose-graph) visualization
+    - I hope this hands-on tutorial code can also be used as training material for Symforce's auto-generated optimized Jacobian code generation (codgen).
+        - For the details, see below [Symforce-based Auto-generated Jacobians](#symforce-based-auto-generated-jacobians).
 - ps. This tutorial supports only batch pose-graph optimization (but with a sparse solver!) and does not cover incrementally expanding pose-graph optimization (e.g., iSAM).
 
 ## Preparation (dependencies)
@@ -22,9 +25,9 @@
     - `$ pip install scipy` 
     - `$ sudo apt-get install libsuitesparse-dev` 
     - `$ pip install scikit-sparse`
+    - `$ pip install symforce`
     - `$ pip install matplotlib`
     - `$ pip install open3d`
-    - `$ pip install symforce`
 
 ## How to use 
 - `$ python nano_pgo.py`
@@ -147,7 +150,7 @@
 
         return sf_Ji, sf_Jj
     ```
-- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codgen API is like:
+- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codgen API is like:
     ```python
     # optimized code compliation process
     def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
