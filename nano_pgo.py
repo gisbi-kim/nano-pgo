@@ -1045,8 +1045,8 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    dataset_name = "data/input_INTEL_g2o.g2o"
-    # dataset_name = "data/input_M3500_g2o.g2o"
+    # dataset_name = "data/input_INTEL_g2o.g2o"
+    dataset_name = "data/input_M3500_g2o.g2o"
     # dataset_name = "data/FR079_P_toro.graph"
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
@@ -1075,11 +1075,12 @@ if __name__ == "__main__":
     # robust kernel size
     cauchy_c = 10.0
 
-    # if False, using hand-written analytic Jacobian
-    use_symforce_generated_jacobian = True  # recommend to use True
 
-    # iteration debug
-    visualize3d_every_iteration = False
+    # recommend to use True (if False, using hand-written analytic Jacobian)
+    use_symforce_generated_jacobian = True  
+
+    # iteration-wise debug
+    visualize3d_every_iteration = True
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
