@@ -15,6 +15,27 @@ import matplotlib.pyplot as plt
 
 import multiprocessing
 
+import time
+import functools
+
+
+def timeit(func):
+    TIMEIT_ENABLED = False
+
+    @functools.wraps(func)
+    def wrapper_timeit(*args, **kwargs):
+        if TIMEIT_ENABLED:
+            start_time = time.perf_counter()
+            result = func(*args, **kwargs)
+            end_time = time.perf_counter()
+            elapsed_time = end_time - start_time
+            print(f"[{func.__name__}] Time cost: {elapsed_time:.6f} sec.")
+            return result
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper_timeit
+
 
 def quaternion_to_rotation(qx, qy, qz, qw):
     rotation = Rotation.from_quat([qx, qy, qz, qw])
@@ -141,7 +162,7 @@ sf_Ri = LieGroupOps.from_tangent(sf.Rot3, sf_ri)
 sf_Rj = LieGroupOps.from_tangent(sf.Rot3, sf_rj)
 sf_Rij = LieGroupOps.from_tangent(sf.Rot3, sf_rij)
 
-# Construct SE(3) containers 
+# Construct SE(3) containers
 sf_Ti = sf.Pose3(R=sf_Ri, t=sf_ti)
 sf_Tj = sf.Pose3(R=sf_Rj, t=sf_tj)
 sf_Tij = sf.Pose3(R=sf_Rij, t=sf_tij)
@@ -163,6 +184,7 @@ sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
 sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
 
+@timeit
 def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     """
     Computes the Jacobians for the between factor residual using Symforce symbolic computation.
@@ -214,6 +236,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     return sf_Ji, sf_Jj
 
 
+@timeit
 def compute_between_factor_residual_and_jacobian(
     pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast=True
 ):
@@ -254,6 +277,7 @@ def compute_between_factor_residual_and_jacobian(
     r_err = rotmat_to_rotvec(R_err)
     residual = np.hstack((t_err, r_err))
 
+    @timeit
     def between_factor_jacobian_by_hand_approx():
         # Jacobian w.r. to pose i
         Ji = np.zeros((6, 6))
@@ -334,6 +358,7 @@ class PoseGraphOptimizer:
         self.H_fig_saved = False
         self.loud_verbose = True
 
+    @timeit
     def read_g2o_file(self, file_path):
         """
         Reads a g2o file and parses the poses and edges.
@@ -515,6 +540,7 @@ class PoseGraphOptimizer:
         # assumption: odom edges have consecutive indices
         return abs(id_to - id_from) == 1
 
+    @timeit
     def process_edge(self, edge_data):
         ii, edge, index_map, x, STATE_DIM, use_jacobian_approx_fast = edge_data
 
@@ -566,6 +592,7 @@ class PoseGraphOptimizer:
 
         return (idx_i, idx_j, Hii, Hjj, Hij, bi, bj, total_error)
 
+    @timeit
     def build_sparse_system(self, edges):
 
         # First step: Calculate each element of H and b
@@ -675,6 +702,7 @@ class PoseGraphOptimizer:
 
         return H, b, total_error
 
+    @timeit
     def solve_sparse_system(self, H, b, e):
         # Apply damping (Levenberg-Marquardt)
         H = H + sp.diags(self.lambda_ * H.diagonal(), format="csr")
@@ -711,6 +739,7 @@ class PoseGraphOptimizer:
         self.H_fig_saved = True
 
     # Recalculate error with updated poses
+    @timeit
     def evaluate_error_changes(self, x_new):
         total_error_after_iter_opt = 0
 
@@ -786,6 +815,7 @@ class PoseGraphOptimizer:
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
 
+    @timeit
     def process_single_iteration(self, iteration):
         # Build and solve the system
         H, b, total_error = self.build_sparse_system(self.edges)
@@ -823,6 +853,7 @@ class PoseGraphOptimizer:
 
         return termination_flag
 
+    @timeit
     def optimize(self, visual_debug=True):
         """
         Performs pose graph optimization using the Gauss-Newton method with robust kernels.
