@@ -277,20 +277,20 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             cost_func_rotation_part     |               *                          *               |
     """
 
-    # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
-    res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
-        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
-        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
-        Tij=sym.Pose3(
-            R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
-            t=pose_ij_meas["t"],
-        ),
-    )
-
     using_optimized_compiled_one = True  # recommend to use True
 
     # fast
     if using_optimized_compiled_one:
+        # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
+        res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+            Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
+            Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
+            Tij=sym.Pose3(
+                R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
+                t=pose_ij_meas["t"],
+            ),
+        )
+
         # ps. the reason why the index 3: mapped to :3
         # is because this example uses [t, r], but symforce uses the order of [r, t]
         sf_Ji = np.zeros((6, 6))
