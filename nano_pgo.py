@@ -615,10 +615,33 @@ class PoseGraphOptimizer:
         return poses, edges
 
     def cauchy_weight(self, s):
+        """
+        Computes the Cauchy robust kernel weight for a given residual squared norm.
+
+        The Cauchy weight reduces the influence of outliers by diminishing their contribution to the optimization.
+
+        Parameters:
+            s (float): The squared norm of the residual, typically computed as residual.T @ information @ residual.
+
+        Returns:
+            float: The computed Cauchy weight.
+        """
         epsilon = 1e-5
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
     def initialize_variables_container(self, index_map):
+        """
+        Initializes the state vector containing all pose variables.
+
+        The state vector `x` is initialized to zeros and populated with the initial translations and rotation vectors
+        for each pose based on the provided `poses_initial` data.
+
+        Parameters:
+            index_map (dict): A mapping from pose IDs to their corresponding indices in the state vector.
+
+        Returns:
+            np.ndarray: The initialized state vector with shape (6 * number_of_poses,).
+        """
         x = np.zeros(6 * self.num_poses)
         for pose_id, pose in self.poses_initial.items():
             idx = index_map[pose_id]
@@ -630,25 +653,74 @@ class PoseGraphOptimizer:
         return x
 
     def get_state_block(self, states_vector, block_idx):
+        """
+        Retrieves a specific block of the state vector corresponding to a particular pose.
+
+        Each pose occupies a fixed number of dimensions (`STATE_DIM`) in the state vector. This function extracts
+        the subset of the state vector associated with the given `block_idx`.
+
+        Parameters:
+            states_vector (np.ndarray): The full state vector containing all poses.
+            block_idx (int): The index of the pose block to retrieve.
+
+        Returns:
+            np.ndarray: The state block corresponding to the specified pose, with shape (`STATE_DIM`,).
+        """
         start_location = self.STATE_DIM * block_idx
         end_location = start_location + self.STATE_DIM
         return states_vector[start_location:end_location]
 
     def add_initials(self, poses_initial):
+        """
+        Adds the initial poses to the optimizer and sets up necessary mappings.
+
+        This function stores the initial pose estimates, counts the number of poses, and generates an index
+        mapping from pose IDs to their respective indices in the state vector.
+
+        Parameters:
+            poses_initial (dict): A dictionary where keys are pose IDs and values are dictionaries containing
+                                't' (translation vector) and 'r' (rotation vector).
+        """
         self.poses_initial = poses_initial
         self.num_poses = len(self.poses_initial)
         self.pose_indices = list(self.poses_initial.keys())
         self.index_map = self.generate_poses_index_map(self.pose_indices)
 
     def add_edges(self, edges):
+        """
+        Adds the edges (constraints) to the optimizer.
+
+        Each edge represents a spatial constraint between two poses, typically derived from sensor measurements.
+
+        Parameters:
+            edges (list): A list of edge dictionaries, each containing 'from', 'to', 't', 'r', 'R', and 'information'.
+        """
         self.edges = edges
 
     def add_prior(self, idx):
+        """
+        Adds a prior to a specific pose to fix the gauge freedom in the optimization.
+
+        Gauge freedom refers to the ambiguity in the global position and orientation of the entire pose graph.
+        By fixing one pose (usually the first), we eliminate this ambiguity.
+
+        Parameters:
+            idx (int): The index of the pose to which the prior will be applied.
+        """
         # Current option: only single prior to avoid gauge problem
         self.prior_pose_id = self.pose_indices[idx]
         self.setup_fixed_single_prior(self.prior_pose_id)
 
     def setup_fixed_single_prior(self, prior_pose_id):
+        """
+        Sets up a fixed prior for a single pose to prevent gauge freedom.
+
+        This function identifies the prior pose's index and assigns a high-information matrix to strongly
+        constrain its position and orientation.
+
+        Parameters:
+            prior_pose_id (hashable): The ID of the pose to be fixed as the prior.
+        """
         # Identify the prior pose index
         self.idx_prior = self.index_map[prior_pose_id]
 
@@ -656,14 +728,60 @@ class PoseGraphOptimizer:
         self.information_prior = 1e9 * np.identity(self.STATE_DIM)  # Adjust as needed
 
     def generate_poses_index_map(self, pose_indices):
+        """
+        Generates a mapping from pose IDs to their corresponding indices in the state vector.
+
+        This mapping is essential for efficiently accessing and updating specific poses within the state vector.
+
+        Parameters:
+            pose_indices (list): A list of pose IDs.
+
+        Returns:
+            dict: A dictionary mapping each pose ID to a unique index.
+        """
         return {pose_id: idx for idx, pose_id in enumerate(pose_indices)}
 
     def nodes_are_consecutive(self, id_to, id_from):
-        # assumption: odom edges have consecutive indices
+        """
+        Determines whether two nodes (poses) are consecutive based on their IDs.
+
+        This is typically used to identify odometry edges, which connect consecutive poses, as opposed to loop closures.
+
+        Parameters:
+            id_to (hashable): The ID of the destination pose.
+            id_from (hashable): The ID of the source pose.
+
+        Returns:
+            bool: True if the poses are consecutive, False otherwise.
+        """
+        # Assumption: odom edges have consecutive indices
         return abs(id_to - id_from) == 1
 
     @timeit
     def process_edge(self, edge_data):
+        """
+        Processes a single edge in the pose graph to compute its contribution to the Hessian matrix and the error term.
+
+        Parameters:
+            edge_data (tuple): A tuple containing the following elements:
+                - ii (int): Index of the current edge.
+                - edge (dict): Dictionary containing edge information, including 'from', 'to', 't', 'r', 'R', and 'information'.
+                - index_map (dict): Mapping from node identifiers to their corresponding indices.
+                - x (np.ndarray): Current state vector containing all pose variables.
+                - STATE_DIM (int): Dimension of the state vector for each pose.
+                - use_symforce_generated_jacobian (bool): Flag indicating whether to use Symforce-generated Jacobians.
+
+        Returns:
+            tuple: A tuple containing the following elements:
+                - idx_i (int): Index of the 'from' node.
+                - idx_j (int): Index of the 'to' node.
+                - Hii (np.ndarray): Hessian submatrix for the 'from' node.
+                - Hjj (np.ndarray): Hessian submatrix for the 'to' node.
+                - Hij (np.ndarray): Hessian submatrix between the 'from' and 'to' nodes.
+                - bi (np.ndarray): Gradient vector for the 'from' node.
+                - bj (np.ndarray): Gradient vector for the 'to' node.
+                - total_error (float): Computed error for this edge.
+        """
         ii, edge, index_map, x, STATE_DIM, use_symforce_generated_jacobian = edge_data
 
         if self.loud_verbose and (ii % 1000 == 0):
@@ -716,7 +834,21 @@ class PoseGraphOptimizer:
 
     @timeit
     def build_sparse_system(self, edges):
+        """
+        Constructs the sparse Hessian matrix (H) and gradient vector (b) for the pose graph optimization problem.
 
+        This function processes all edges to compute their contributions to H and b, applies robust kernels if necessary,
+        and assembles the final sparse system. It also includes the prior to prevent gauge freedom if enabled.
+
+        Parameters:
+            edges (list): List of edge dictionaries, each containing 'from', 'to', 't', 'r', 'R', and 'information'.
+
+        Returns:
+            tuple: A tuple containing the following elements:
+                - H (scipy.sparse.coo_matrix): The assembled sparse Hessian matrix.
+                - b (np.ndarray): The assembled gradient vector.
+                - total_error (float): The total error accumulated from all edges.
+        """
         # First step: Calculate each element of H and b
         #  Prepare data for parallel processing
         edge_data_list = [
@@ -826,6 +958,17 @@ class PoseGraphOptimizer:
 
     @timeit
     def solve_sparse_system(self, H, b, e):
+        """
+        Solves the sparse linear system H * delta_x = b using the Cholesky factorization with damping (Levenberg-Marquardt).
+
+        Parameters:
+            H (scipy.sparse.coo_matrix): The sparse Hessian matrix.
+            b (np.ndarray): The gradient vector.
+            e (float): The current error value (unused in this implementation).
+
+        Returns:
+            np.ndarray: The solution vector delta_x, representing the update to the state vector.
+        """
         # Apply damping (Levenberg-Marquardt)
         H = H + sp.diags(self.lambda_ * H.diagonal(), format="csr")
 
@@ -838,31 +981,18 @@ class PoseGraphOptimizer:
 
         return delta_x
 
-    def plot_H_matrix(self, H, name):
+    def evaluate_error_changes(self, x_new):
         """
-        Plots the sparsity pattern of the Hessian matrix H.
+        Evaluates the total error after applying an update to the state vector.
+
+        This function recalculates the error for all edges using the updated poses and includes the prior error if applicable.
 
         Parameters:
-            H (scipy.sparse.coo_matrix): The Hessian matrix.
+            x_new (np.ndarray): The updated state vector after applying delta_x.
+
+        Returns:
+            float: The total error after the update.
         """
-        if not hasattr(self, "fig") or not hasattr(self, "ax"):
-            # Initialize the plot on the first call
-            self.fig, self.ax = plt.subplots(figsize=(6, 6))
-            plt.ion()  # Enable interactive mode
-
-        self.ax.clear()
-        self.ax.set_title(f"Sparsity Pattern of H")
-        self.ax.spy(H, markersize=1, color="white")  # White for non-zero
-        self.ax.set_facecolor("black")  # Black for zero
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-        self.fig.savefig(f"docs/H/H_sparsity_{name}.png")
-        self.H_fig_saved = True
-
-    # Recalculate error with updated poses
-    @timeit
-    def evaluate_error_changes(self, x_new):
         total_error_after_iter_opt = 0
 
         for edge in self.edges:
@@ -884,14 +1014,14 @@ class PoseGraphOptimizer:
                 pose_i, pose_j, pose_ij_meas, use_symforce_generated_jacobian=True
             )
 
-            # Apply Cauchy robust kernel if consecutive
+            # Apply Cauchy robust kernel if not consecutive
             if not self.nodes_are_consecutive(edge["from"], edge["to"]):
                 s = residual.T @ information @ residual
                 weight = self.cauchy_weight(s)
             else:
                 weight = 1.0
 
-            # deweight
+            # Deweight
             residual *= weight
 
             total_error_after_iter_opt += residual.T @ information @ residual
@@ -909,13 +1039,26 @@ class PoseGraphOptimizer:
         return total_error_after_iter_opt
 
     def adjust_parameters(self, iteration, delta_x, error_before_opt, error_after_opt):
+        """
+        Adjusts the Levenberg-Marquardt damping parameter and the Cauchy kernel size based on the change in error.
+
+        If the error decreases, the damping parameter is reduced to allow for larger steps. If the error does not decrease,
+        the damping parameter is increased to enforce smaller, more conservative steps. Additionally, the Cauchy kernel size
+        is adjusted to control the influence of outliers.
+
+        Parameters:
+            iteration (int): The current iteration number.
+            delta_x (np.ndarray): The update vector applied to the state.
+            error_before_opt (float): The total error before applying the update.
+            error_after_opt (float): The total error after applying the update.
+        """
         # Check if error decreased
         if error_after_opt < error_before_opt:
-            # tune params
+            # Tune parameters
             if self.lambda_allowed_range[0] < self.lambda_:
                 self.lambda_ /= 10.0
 
-            # verbose
+            # Verbose
             print(
                 f"\nIteration {iteration}: The total cost",
                 f"decreased from {error_before_opt:.3f} to {error_after_opt:.3f}",
@@ -923,7 +1066,7 @@ class PoseGraphOptimizer:
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
         else:
-            # tune params
+            # Tune parameters
             if self.lambda_ < self.lambda_allowed_range[1]:
                 self.lambda_ *= 10.0
 
@@ -931,7 +1074,7 @@ class PoseGraphOptimizer:
             if self.cauchy_c > min_cauchy_c:
                 self.cauchy_c /= 2.0
 
-            # verbose
+            # Verbose
             print(
                 f"\nIteration {iteration}: The total cost did not decrease (from",
                 f"{error_before_opt:.3f} to {error_after_opt:.3f}).",
@@ -941,6 +1084,16 @@ class PoseGraphOptimizer:
 
     @timeit
     def process_single_iteration(self, iteration):
+        """
+        Processes a single iteration of the optimization algorithm, including building and solving the sparse system,
+        updating the state vector, adjusting parameters, and checking for convergence.
+
+        Parameters:
+            iteration (int): The current iteration number.
+
+        Returns:
+            bool: A flag indicating whether the optimization has converged (True) or should continue (False).
+        """
         # Build and solve the system
         H, b, total_error = self.build_sparse_system(self.edges)
         if not self.H_fig_saved:
@@ -962,7 +1115,7 @@ class PoseGraphOptimizer:
             iteration, delta_x, total_error, total_error_after_iter_opt
         )
 
-        # Visualize this iterations's result
+        # Visualize this iteration's result
         if self.visualize3d_every_iteration:
             self.visualize_3d_poses(self.get_optimized_poses())
 
@@ -983,20 +1136,21 @@ class PoseGraphOptimizer:
         """
         Performs pose graph optimization using the Gauss-Newton method with robust kernels.
 
+        This function initializes the state variables and iteratively processes each optimization step until
+        convergence criteria are met or the maximum number of iterations is reached.
+
         Parameters:
-            poses_initial (dict): Initial poses with pose ID as keys and dictionaries containing rotation 'R', translation 't', and rotation vector 'r'.
-            edges (list): List of edges, where each edge is a dictionary containing 'from', 'to', rotation matrix 'R', translation vector 't', and 'information' matrix.
-            self.max_iterations (int, optional): Maximum number of optimization iterations (default is 10).
-            c (float, optional): Parameter for the Cauchy robust kernel (default is 1.0).
+            visual_debug (bool, optional): Flag to enable visual debugging. If True, visualization functions will be called.
+                                            (Default is True).
 
         Returns:
-            optimized_poses (dict): Optimized poses with pose ID as keys and dictionaries containing rotation matrix 'R' and translation vector 't'.
+            dict: Optimized poses with pose IDs as keys and dictionaries containing rotation matrix 'R' and translation vector 't'.
         """
 
         # Initialize pose parameters
         self.x = self.initialize_variables_container(self.index_map)
 
-        # optimize
+        # Optimize
         for iteration in range(self.max_iterations):
             termination_flag = self.process_single_iteration(iteration)
             if termination_flag:
@@ -1006,6 +1160,14 @@ class PoseGraphOptimizer:
         return self.get_optimized_poses()
 
     def get_optimized_poses(self):
+        """
+        Retrieves the optimized poses from the state vector after optimization.
+
+        Returns:
+            dict: A dictionary where each key is a pose ID and the value is another dictionary containing:
+                - 'R' (np.ndarray): The optimized rotation matrix.
+                - 't' (np.ndarray): The optimized translation vector.
+        """
         optimized_poses = {}
         for pose_id, idx in self.index_map.items():
             xi = self.x[(6 * idx) : (6 * idx) + 6]
@@ -1017,6 +1179,12 @@ class PoseGraphOptimizer:
         return optimized_poses
 
     def visualize_3d_poses(self, poses_optimized):
+        """
+        Visualizes the initial and optimized poses in a 3D plot, showing the trajectory before and after optimization.
+
+        Parameters:
+            poses_optimized (dict): Optimized poses with pose IDs as keys and dictionaries containing rotation matrix 'R' and translation vector 't'.
+        """
         # Prepare data for plotting
         # Sort the poses based on pose IDs to maintain order
         sorted_pose_ids = sorted(self.poses_initial.keys())
@@ -1030,12 +1198,37 @@ class PoseGraphOptimizer:
         ]
 
         # Prepare edges for plotting
-        edges_for_plotting = [{"i": edge["from"], "j": edge["to"]} for edge in edges]
+        edges_for_plotting = [
+            {"i": edge["from"], "j": edge["to"]} for edge in self.edges
+        ]
 
         # Plot the results using Open3D
         plot_two_poses_with_edges_open3d(
             initial_positions_list, optimized_positions_list, edges_for_plotting
         )
+
+    def plot_H_matrix(self, H, name):
+        """
+        Plots the sparsity pattern of the Hessian matrix H.
+
+        Parameters:
+            H (scipy.sparse.coo_matrix): The Hessian matrix.
+            name (str): Identifier name used for saving the plot file.
+        """
+        if not hasattr(self, "fig") or not hasattr(self, "ax"):
+            # Initialize the plot on the first call
+            self.fig, self.ax = plt.subplots(figsize=(6, 6))
+            plt.ion()  # Enable interactive mode
+
+        self.ax.clear()
+        self.ax.set_title(f"Sparsity Pattern of H")
+        self.ax.spy(H, markersize=1, color="white")  # White for non-zero
+        self.ax.set_facecolor("black")  # Black for zero
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        self.fig.savefig(f"docs/H/H_sparsity_{name}.png")
+        self.H_fig_saved = True
 
 
 if __name__ == "__main__":

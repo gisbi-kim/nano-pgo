@@ -308,21 +308,39 @@ def sf_between_error_with_jacobians01(Ti, Tj, Tij):
         + _tmp75 * _tmp84
     )
     _res_D_Ti = numpy.zeros((6, 6))
-    _res_D_Ti[0, 0] = _tmp110 * _tmp111 - _tmp117 * _tmp118 - _tmp123 * _tmp124 + _tmp129 * _tmp130
-    _res_D_Ti[1, 0] = _tmp110 * _tmp130 - _tmp111 * _tmp129 - _tmp117 * _tmp124 + _tmp118 * _tmp123
-    _res_D_Ti[2, 0] = -_tmp110 * _tmp118 - _tmp111 * _tmp117 + _tmp123 * _tmp130 + _tmp124 * _tmp129
+    _res_D_Ti[0, 0] = (
+        _tmp110 * _tmp111 - _tmp117 * _tmp118 - _tmp123 * _tmp124 + _tmp129 * _tmp130
+    )
+    _res_D_Ti[1, 0] = (
+        _tmp110 * _tmp130 - _tmp111 * _tmp129 - _tmp117 * _tmp124 + _tmp118 * _tmp123
+    )
+    _res_D_Ti[2, 0] = (
+        -_tmp110 * _tmp118 - _tmp111 * _tmp117 + _tmp123 * _tmp130 + _tmp124 * _tmp129
+    )
     _res_D_Ti[3, 0] = _tmp135 * _tmp51 + _tmp144 * _tmp67
     _res_D_Ti[4, 0] = _tmp135 * _tmp78 + _tmp144 * _tmp81
     _res_D_Ti[5, 0] = _tmp135 * _tmp83 + _tmp144 * _tmp84
-    _res_D_Ti[0, 1] = _tmp111 * _tmp154 - _tmp118 * _tmp150 - _tmp124 * _tmp158 + _tmp130 * _tmp161
-    _res_D_Ti[1, 1] = -_tmp111 * _tmp161 + _tmp118 * _tmp158 - _tmp124 * _tmp150 + _tmp130 * _tmp154
-    _res_D_Ti[2, 1] = -_tmp111 * _tmp150 - _tmp118 * _tmp154 + _tmp124 * _tmp161 + _tmp130 * _tmp158
+    _res_D_Ti[0, 1] = (
+        _tmp111 * _tmp154 - _tmp118 * _tmp150 - _tmp124 * _tmp158 + _tmp130 * _tmp161
+    )
+    _res_D_Ti[1, 1] = (
+        -_tmp111 * _tmp161 + _tmp118 * _tmp158 - _tmp124 * _tmp150 + _tmp130 * _tmp154
+    )
+    _res_D_Ti[2, 1] = (
+        -_tmp111 * _tmp150 - _tmp118 * _tmp154 + _tmp124 * _tmp161 + _tmp130 * _tmp158
+    )
     _res_D_Ti[3, 1] = _tmp165 * _tmp67 + _tmp170 * _tmp26
     _res_D_Ti[4, 1] = _tmp165 * _tmp81 + _tmp170 * _tmp76
     _res_D_Ti[5, 1] = _tmp165 * _tmp84 + _tmp170 * _tmp82
-    _res_D_Ti[0, 2] = _tmp111 * _tmp182 - _tmp118 * _tmp177 - _tmp124 * _tmp180 + _tmp130 * _tmp174
-    _res_D_Ti[1, 2] = -_tmp111 * _tmp174 + _tmp118 * _tmp180 - _tmp124 * _tmp177 + _tmp130 * _tmp182
-    _res_D_Ti[2, 2] = -_tmp111 * _tmp177 - _tmp118 * _tmp182 + _tmp124 * _tmp174 + _tmp130 * _tmp180
+    _res_D_Ti[0, 2] = (
+        _tmp111 * _tmp182 - _tmp118 * _tmp177 - _tmp124 * _tmp180 + _tmp130 * _tmp174
+    )
+    _res_D_Ti[1, 2] = (
+        -_tmp111 * _tmp174 + _tmp118 * _tmp180 - _tmp124 * _tmp177 + _tmp130 * _tmp182
+    )
+    _res_D_Ti[2, 2] = (
+        -_tmp111 * _tmp177 - _tmp118 * _tmp182 + _tmp124 * _tmp174 + _tmp130 * _tmp180
+    )
     _res_D_Ti[3, 2] = _tmp187 * _tmp51 + _tmp189 * _tmp26
     _res_D_Ti[4, 2] = _tmp187 * _tmp78 + _tmp189 * _tmp76
     _res_D_Ti[5, 2] = _tmp187 * _tmp83 + _tmp189 * _tmp82
@@ -345,21 +363,39 @@ def sf_between_error_with_jacobians01(Ti, Tj, Tij):
     _res_D_Ti[4, 5] = _tmp137 * _tmp78 + _tmp183 * _tmp76 + _tmp193 * _tmp81
     _res_D_Ti[5, 5] = _tmp137 * _tmp83 + _tmp183 * _tmp82 + _tmp193 * _tmp84
     _res_D_Tj = numpy.zeros((6, 6))
-    _res_D_Tj[0, 0] = _tmp111 * _tmp202 - _tmp118 * _tmp200 - _tmp124 * _tmp197 + _tmp130 * _tmp205
-    _res_D_Tj[1, 0] = -_tmp111 * _tmp205 + _tmp118 * _tmp197 - _tmp124 * _tmp200 + _tmp130 * _tmp202
-    _res_D_Tj[2, 0] = -_tmp111 * _tmp200 - _tmp118 * _tmp202 + _tmp124 * _tmp205 + _tmp130 * _tmp197
+    _res_D_Tj[0, 0] = (
+        _tmp111 * _tmp202 - _tmp118 * _tmp200 - _tmp124 * _tmp197 + _tmp130 * _tmp205
+    )
+    _res_D_Tj[1, 0] = (
+        -_tmp111 * _tmp205 + _tmp118 * _tmp197 - _tmp124 * _tmp200 + _tmp130 * _tmp202
+    )
+    _res_D_Tj[2, 0] = (
+        -_tmp111 * _tmp200 - _tmp118 * _tmp202 + _tmp124 * _tmp205 + _tmp130 * _tmp197
+    )
     _res_D_Tj[3, 0] = 0
     _res_D_Tj[4, 0] = 0
     _res_D_Tj[5, 0] = 0
-    _res_D_Tj[0, 1] = _tmp111 * _tmp206 - _tmp118 * _tmp208 - _tmp124 * _tmp207 + _tmp130 * _tmp210
-    _res_D_Tj[1, 1] = -_tmp111 * _tmp210 + _tmp118 * _tmp207 - _tmp124 * _tmp208 + _tmp130 * _tmp206
-    _res_D_Tj[2, 1] = -_tmp111 * _tmp208 - _tmp118 * _tmp206 + _tmp124 * _tmp210 + _tmp130 * _tmp207
+    _res_D_Tj[0, 1] = (
+        _tmp111 * _tmp206 - _tmp118 * _tmp208 - _tmp124 * _tmp207 + _tmp130 * _tmp210
+    )
+    _res_D_Tj[1, 1] = (
+        -_tmp111 * _tmp210 + _tmp118 * _tmp207 - _tmp124 * _tmp208 + _tmp130 * _tmp206
+    )
+    _res_D_Tj[2, 1] = (
+        -_tmp111 * _tmp208 - _tmp118 * _tmp206 + _tmp124 * _tmp210 + _tmp130 * _tmp207
+    )
     _res_D_Tj[3, 1] = 0
     _res_D_Tj[4, 1] = 0
     _res_D_Tj[5, 1] = 0
-    _res_D_Tj[0, 2] = _tmp111 * _tmp212 - _tmp118 * _tmp214 - _tmp124 * _tmp213 + _tmp130 * _tmp211
-    _res_D_Tj[1, 2] = -_tmp111 * _tmp211 + _tmp118 * _tmp213 - _tmp124 * _tmp214 + _tmp130 * _tmp212
-    _res_D_Tj[2, 2] = -_tmp111 * _tmp214 - _tmp118 * _tmp212 + _tmp124 * _tmp211 + _tmp130 * _tmp213
+    _res_D_Tj[0, 2] = (
+        _tmp111 * _tmp212 - _tmp118 * _tmp214 - _tmp124 * _tmp213 + _tmp130 * _tmp211
+    )
+    _res_D_Tj[1, 2] = (
+        -_tmp111 * _tmp211 + _tmp118 * _tmp213 - _tmp124 * _tmp214 + _tmp130 * _tmp212
+    )
+    _res_D_Tj[2, 2] = (
+        -_tmp111 * _tmp214 - _tmp118 * _tmp212 + _tmp124 * _tmp211 + _tmp130 * _tmp213
+    )
     _res_D_Tj[3, 2] = 0
     _res_D_Tj[4, 2] = 0
     _res_D_Tj[5, 2] = 0
