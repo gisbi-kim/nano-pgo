@@ -48,7 +48,7 @@ def timeit(func):
     return wrapper_timeit
 
 
-def quaternion_to_rotation(qx, qy, qz, qw):
+def quat_to_rotmat(qx, qy, qz, qw):
     rotation = Rotation.from_quat([qx, qy, qz, qw])
     return rotation.as_matrix()
 
@@ -57,13 +57,6 @@ def rotvec_to_quat(rotvec):
     rotation = Rotation.from_rotvec(rotvec)
     q = rotation.as_quat()
     return q
-
-
-def se2_to_se3(x, y, theta):
-    rotation = Rotation.from_euler("z", theta)
-    R = rotation.as_matrix()
-    t = np.array([x, y, 0.0])
-    return R, t
 
 
 def rotmat_to_rotvec(R):
@@ -80,6 +73,13 @@ def rotvec_to_rotmat(rotvec):
 
 def skew_symmetric(v):
     return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+
+
+def se2_to_se3(x, y, theta):
+    rotation = Rotation.from_euler("z", theta)
+    R = rotation.as_matrix()
+    t = np.array([x, y, 0.0])
+    return R, t
 
 
 def plot_two_poses_with_edges_open3d(
@@ -549,7 +549,7 @@ class PoseGraphOptimizer:
                         node_id = int(data[1])
                         x, y, z = map(float, data[2:5])
                         qx, qy, qz, qw = map(float, data[5:9])
-                        R = quaternion_to_rotation(qx, qy, qz, qw)
+                        R = quat_to_rotmat(qx, qy, qz, qw)
                         t = np.array([x, y, z])
                         poses[node_id] = {"R": R, "t": t}
 
@@ -566,7 +566,7 @@ class PoseGraphOptimizer:
                         id_to = int(data[2])
                         x, y, z = map(float, data[3:6])
                         qx, qy, qz, qw = map(float, data[6:10])
-                        R = quaternion_to_rotation(qx, qy, qz, qw)
+                        R = quat_to_rotmat(qx, qy, qz, qw)
                         t = np.array([x, y, z])
 
                         if self.using_predefined_const_information_matrix_wrt_type:
