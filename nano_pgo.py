@@ -361,8 +361,8 @@ def compute_between_factor_residual_and_jacobian(
 
     Returns:
         residual (np.ndarray): 6-element residual vector.
-        Ji (np.ndarray): 6x6 Jacobian matrix with respect to pose i.
-        Jj (np.ndarray): 6x6 Jacobian matrix with respect to pose j.
+        Ji (np.ndarray): 6x6 (num_rows: cost-dim, by num_cols: var-dim) Jacobian matrix with respect to pose i.
+        Jj (np.ndarray): 6x6 (num_rows: cost-dim, by num_cols: var-dim) Jacobian matrix with respect to pose j.
     """
     # Unpack poses
     ti, ri = pose_i["t"], pose_i["r"]
@@ -1269,7 +1269,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # robust kernel size
-    cauchy_c = 10.0
+    cauchy_c = 2.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
