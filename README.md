@@ -17,6 +17,10 @@
         - For the details, see below [Symforce-based Auto-generated Jacobians](#symforce-based-auto-generated-jacobians).
 - ps. This tutorial supports only batch pose-graph optimization (but with a sparse solver!) and does not cover incrementally expanding pose-graph optimization (e.g., iSAM).
 
+## Overview 
+ ![example results 2](docs/overview/pipeline.png)
+*Figure 2: The pipeline of nano-pgo*
+
 ## Preparation (dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
     - `$ python3.11 -m venv ~/envs/py311`
@@ -53,8 +57,8 @@
 ## Symforce-based Auto-generated Jacobians 
 - SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
 - You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`.
-![example results 2](docs/comparison_jacobian_modes/parking-garage/summary.png)
-*Figure 2: Auto-generated Symbolic Jacobian's effectiveness.*
+![example results 3](docs/comparison_jacobian_modes/parking-garage/summary.png)
+*Figure 3: Auto-generated Symbolic Jacobian's effectiveness.*
 
 - You can first build (compile) the Jacobian of the relative SE(3) error like this,
 
