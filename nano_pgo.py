@@ -53,7 +53,7 @@ def quaternion_to_rotation(qx, qy, qz, qw):
     return rotation.as_matrix()
 
 
-def rotvec_to_quaternion(rotvec):
+def rotvec_to_quat(rotvec):
     rotation = Rotation.from_rotvec(rotvec)
     q = rotation.as_quat()
     return q
@@ -282,11 +282,11 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     # fast
     if using_optimized_compiled_one:
         # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
-        res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
-            Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
-            Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
+        _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+            Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_i["r"])), t=pose_i["t"]),
+            Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_j["r"])), t=pose_j["t"]),
             Tij=sym.Pose3(
-                R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
+                R=sym.rot3.Rot3(rotvec_to_quat(pose_ij_meas["r"])),
                 t=pose_ij_meas["t"],
             ),
         )
@@ -321,7 +321,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             sf_ti: sf.V3(pose_i["t"] + epsilon),
             sf_rj: sf.V3(pose_j["r"] + epsilon),
             sf_tj: sf.V3(pose_j["t"] + epsilon),
-            sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
+            sf_rij: sf.V3(pose_ij_meas["r"] + epsilon),
             sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
         }
 
@@ -606,8 +606,11 @@ class PoseGraphOptimizer:
                         edges.append(edge)
 
         # Convert rotations to rotation vectors
-        for pose_id, pose in poses.items():
+        for _, pose in poses.items():
             pose["r"] = rotmat_to_rotvec(pose["R"])
+
+        for edge in edges:
+            edge["r"] = rotmat_to_rotvec(edge["R"])
 
         return poses, edges
 
@@ -664,7 +667,7 @@ class PoseGraphOptimizer:
         ii, edge, index_map, x, STATE_DIM, use_symforce_generated_jacobian = edge_data
 
         if self.loud_verbose and (ii % 1000 == 0):
-            print(f" [(parr) build_sparse_system] processing edge {ii}/{len(edges)}")
+            print(f" [(par) build_sparse_system] processing edge {ii}/{len(edges)}")
 
         idx_i = index_map[edge["from"]]
         idx_j = index_map[edge["to"]]
@@ -676,7 +679,7 @@ class PoseGraphOptimizer:
         pose_i = {"t": xi[:3], "r": xi[3:]}
         pose_j = {"t": xj[:3], "r": xj[3:]}
 
-        pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
+        pose_ij_meas = {"t": edge["t"], "r": edge["r"], "R": edge["R"]}
         information_edge = edge["information"]
 
         # Compute residual and Jacobians
@@ -873,7 +876,7 @@ class PoseGraphOptimizer:
             pose_i = {"t": xi[:3], "r": xi[3:]}
             pose_j = {"t": xj[:3], "r": xj[3:]}
 
-            pose_ij_meas = {"R": edge["R"], "t": edge["t"]}
+            pose_ij_meas = {"t": edge["t"], "r": edge["r"], "R": edge["R"]}
             information = edge["information"]
 
             # Compute residual
@@ -1045,8 +1048,8 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    # dataset_name = "data/input_INTEL_g2o.g2o"
-    dataset_name = "data/input_M3500_g2o.g2o"
+    dataset_name = "data/input_INTEL_g2o.g2o"
+    # dataset_name = "data/input_M3500_g2o.g2o"
     # dataset_name = "data/FR079_P_toro.graph"
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
@@ -1075,9 +1078,8 @@ if __name__ == "__main__":
     # robust kernel size
     cauchy_c = 10.0
 
-
     # recommend to use True (if False, using hand-written analytic Jacobian)
-    use_symforce_generated_jacobian = True  
+    use_symforce_generated_jacobian = True
 
     # iteration-wise debug
     visualize3d_every_iteration = True

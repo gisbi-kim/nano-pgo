@@ -181,10 +181,10 @@
     # Then you can use like this 
     #  (Using the above auto-geneated functions within the copied __between_error_codegen.py file)
     _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
-        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
-        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
+        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_i["r"])), t=pose_i["t"]),
+        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_j["r"])), t=pose_j["t"]),
         Tij=sym.Pose3(
-            R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
+            R=sym.rot3.Rot3(rotvec_to_quat(pose_ij_meas["r"])),
             t=pose_ij_meas["t"],
         ),
     )
