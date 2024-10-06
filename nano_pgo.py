@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation
 import scipy.sparse as sp
 import sksparse.cholmod as cholmod
 
+import sym
 import symforce
 
 symforce.set_epsilon_to_number()
@@ -275,7 +276,6 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             cost_func_translation_part  |               *                          *               |
             cost_func_rotation_part     |               *                          *               |
     """
-    import sym
 
     # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
     res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
