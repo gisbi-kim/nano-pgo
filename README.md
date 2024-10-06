@@ -13,7 +13,7 @@
         - symforce for the auto-generated symbolic Jacobian (optional)
         - sksparse for cholmod and solve function
         - open3d for large-sized point cloud (pose-graph) visualization
-    - I hope this hands-on tutorial code can also be used as training material for Symforce's auto-generated optimized Jacobian code generation (codgen).
+    - I hope this hands-on tutorial code can also be used as training material for Symforce's auto-generated optimized Jacobian code generation (codegen).
         - For the details, see below [Symforce-based Auto-generated Jacobians](#symforce-based-auto-generated-jacobians).
 - ps. This tutorial supports only batch pose-graph optimization (but with a sparse solver!) and does not cover incrementally expanding pose-graph optimization (e.g., iSAM).
 
@@ -150,32 +150,32 @@
 
         return sf_Ji, sf_Jj
     ```
-- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codgen API is like:
+- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codegen API is like:
     ```python
     # optimized code compliation process
     def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
         return Tij.inverse() * (Ti.inverse() * Tj)
 
 
-    between_error_codgen = codegen.Codegen.function(
+    between_error_codegen = codegen.Codegen.function(
         func=sf_between_error,
         config=codegen.PythonConfig(),
     )
 
-    between_error_codgen_with_jacobians = between_error_codgen.with_jacobians(
+    between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
         which_args=["Ti", "Tj"],
         include_results=True,
     )
 
-    between_error_codgen_with_jacobians_data = (
-        between_error_codgen_with_jacobians.generate_function()
+    between_error_codegen_with_jacobians_data = (
+        between_error_codegen_with_jacobians.generate_function()
     )
 
     # copy the generated source file and import ... 
     # ...
 
     # Then you can use like this 
-    #  (Using the above auto-geneated functions within the copied __between_error_codgen.py file)
+    #  (Using the above auto-geneated functions within the copied __between_error_codegen.py file)
     _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
         Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
         Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),

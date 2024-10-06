@@ -204,35 +204,35 @@ def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
     return Tij.inverse() * (Ti.inverse() * Tj)
 
 
-between_error_codgen = codegen.Codegen.function(
+between_error_codegen = codegen.Codegen.function(
     func=sf_between_error,
     config=codegen.PythonConfig(),
 )
 
-between_error_codgen_with_jacobians = between_error_codgen.with_jacobians(
+between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
     which_args=["Ti", "Tj"],
     include_results=True,
 )
 
-between_error_codgen_with_jacobians_data = (
-    between_error_codgen_with_jacobians.generate_function()
+between_error_codegen_with_jacobians_data = (
+    between_error_codegen_with_jacobians.generate_function()
 )
 
 print(
     "\nThe optimized (compiled) Jacobian source files generated in {}:\n".format(
-        between_error_codgen_with_jacobians_data.output_dir
+        between_error_codegen_with_jacobians_data.output_dir
     )
 )
 
 # copy here and import it
-for f in between_error_codgen_with_jacobians_data.generated_files:
-    rel_path = f.relative_to(between_error_codgen_with_jacobians_data.output_dir)
+for f in between_error_codegen_with_jacobians_data.generated_files:
+    rel_path = f.relative_to(between_error_codegen_with_jacobians_data.output_dir)
 
     gen_src_path = str(f)
 
     if not gen_src_path.endswith("__init__.py"):
-        # Generate a new file name (__between_error_codgen.py)
-        target_path = os.path.join(os.getcwd(), "__between_error_codgen.py")
+        # Generate a new file name (__between_error_codegen.py)
+        target_path = os.path.join(os.getcwd(), "__between_error_codegen.py")
 
         # Copy the file
         shutil.copyfile(gen_src_path, target_path)
@@ -240,7 +240,7 @@ for f in between_error_codgen_with_jacobians_data.generated_files:
 
         # Import the copied file
         spec = importlib.util.spec_from_file_location(
-            "__between_error_codgen", target_path
+            "__between_error_codegen", target_path
         )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -277,7 +277,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     """
     import sym
 
-    # Using the above auto-geneated functions within the copied __between_error_codgen.py file.
+    # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
     res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
         Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
         Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
@@ -1065,7 +1065,7 @@ if __name__ == "__main__":
       Pose-graph optimization
     """
 
-    # Using 1 (single-process) is okay because symforce's codgen-based compiled, optimized jacobian calculation is so fast.
+    # Using 1 (single-process) is okay because symforce's codegen-based compiled, optimized jacobian calculation is so fast.
     #  and using bigger does not guarantee the faster speed because it reuiqres additional multi processing costs.
     num_processes = 1
 

@@ -1,7 +1,7 @@
 The optimized (compiled) Jacobian source files generated in /tmp/sf_codegen_sf_between_error_with_jacobians01_uxgry1su:
 
-File copied to: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
-Imported functions from: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
+File copied to: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codegen.py
+Imported functions from: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codegen.py
 
  Using symforce-based automatically derived symbolic jacobian...
 
