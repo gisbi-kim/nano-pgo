@@ -1,3 +1,7 @@
+import shutil
+import importlib.util
+import os
+
 import time
 import numpy as np
 
@@ -7,8 +11,14 @@ from scipy.spatial.transform import Rotation
 import scipy.sparse as sp
 import sksparse.cholmod as cholmod
 
+import symforce
+
+symforce.set_epsilon_to_number()
 import symforce.symbolic as sf
 from symforce.ops import LieGroupOps
+from symforce import codegen
+from symforce.values import Values
+from symforce.codegen import codegen_util
 
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -40,6 +50,12 @@ def timeit(func):
 def quaternion_to_rotation(qx, qy, qz, qw):
     rotation = Rotation.from_quat([qx, qy, qz, qw])
     return rotation.as_matrix()
+
+
+def rotvec_to_quaternion(rotvec):
+    rotation = Rotation.from_rotvec(rotvec)
+    q = rotation.as_quat()
+    return q
 
 
 def se2_to_se3(x, y, theta):
@@ -184,6 +200,62 @@ sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
 sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
 
+def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
+    return Tij.inverse() * (Ti.inverse() * Tj)
+
+
+between_error_codgen = codegen.Codegen.function(
+    func=sf_between_error,
+    config=codegen.PythonConfig(),
+)
+
+between_error_codgen_with_jacobians = between_error_codgen.with_jacobians(
+    which_args=["Ti", "Tj"],
+    include_results=True,
+)
+
+between_error_codgen_with_jacobians_data = (
+    between_error_codgen_with_jacobians.generate_function()
+)
+
+print(
+    "\nThe optimized (compiled) Jacobian source files generated in {}:\n".format(
+        between_error_codgen_with_jacobians_data.output_dir
+    )
+)
+
+# copy here and import it  
+for f in between_error_codgen_with_jacobians_data.generated_files:
+    rel_path = f.relative_to(between_error_codgen_with_jacobians_data.output_dir)
+
+    gen_src_path = str(f)
+
+    if not gen_src_path.endswith("__init__.py"):
+        # Generate a new file name (__between_error_codgen.py)
+        target_path = os.path.join(os.getcwd(), "__between_error_codgen.py")
+
+        # Copy the file
+        shutil.copyfile(gen_src_path, target_path)
+        print(f"File copied to: {target_path}")
+
+        # Import the copied file
+        spec = importlib.util.spec_from_file_location(
+            "__between_error_codgen", target_path
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # Import all functions from the module
+        globals().update(
+            {
+                name: getattr(mod, name)
+                for name in dir(mod)
+                if callable(getattr(mod, name))
+            }
+        )
+        print(f"Imported functions from: {target_path}")
+
+
 @timeit
 def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     """
@@ -203,42 +275,80 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             cost_func_translation_part  |               *                          *               |
             cost_func_rotation_part     |               *                          *               |
     """
+    import sym
 
-    # Create the substitutions dictionary
-    substitutions = {
-        sf_ri: sf.V3(pose_i["r"] + epsilon),
-        sf_ti: sf.V3(pose_i["t"] + epsilon),
-        sf_rj: sf.V3(pose_j["r"] + epsilon),
-        sf_tj: sf.V3(pose_j["t"] + epsilon),
-        sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
-        sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
-    }
+    # Using the above auto-geneated functions within the copied __between_error_codgen.py file.
+    res_7dim, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
+        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
+        Tij=sym.Pose3(
+            R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
+            t=pose_ij_meas["t"],
+        ),
+    )
 
-    sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
-    sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
-    sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
-    sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
+    using_optimized_compiled_one = True
 
-    # ps. the reason why the index 3: mapped to :3
-    # is because this example uses [t, r], but symforce uses the order of [r, t]
-    sf_Ji = np.zeros((6, 6))
-    sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
-    sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
-    sf_Ji[:3, 3:] = sf_J_ri_val[3:, :]
-    sf_Ji[3:, 3:] = sf_J_ri_val[:3, :]
+    # fast
+    if using_optimized_compiled_one:
+        if False:
+            print("Residual:", res)
+            print("Jacobian wrt Ti:\n", res_D_Ti)
+            print("Jacobian wrt Tj:\n", res_D_Tj)
 
-    sf_Jj = np.zeros((6, 6))
-    sf_Jj[:3, :3] = sf_J_tj_val[3:, :]
-    sf_Jj[3:, :3] = sf_J_tj_val[:3, :]
-    sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
-    sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
+        # ps. the reason why the index 3: mapped to :3
+        # is because this example uses [t, r], but symforce uses the order of [r, t]
+        sf_Ji = np.zeros((6, 6))
+        sf_Ji[:3, :3] = res_D_Ti[3:, 3:]
+        sf_Ji[3:, :3] = res_D_Ti[:3, 3:]
+        sf_Ji[:3, 3:] = res_D_Ti[3:, :3]
+        sf_Ji[3:, 3:] = res_D_Ti[:3, :3]
 
-    return sf_Ji, sf_Jj
+        sf_Jj = np.zeros((6, 6))
+        sf_Jj[:3, :3] = res_D_Tj[3:, 3:]
+        sf_Jj[3:, :3] = res_D_Tj[:3, 3:]
+        sf_Jj[:3, 3:] = res_D_Tj[3:, :3]
+        sf_Jj[3:, 3:] = res_D_Tj[:3, :3]
+
+        return sf_Ji, sf_Jj
+
+    # slow
+    else:
+        # Create the substitutions dictionary
+        substitutions = {
+            sf_ri: sf.V3(pose_i["r"] + epsilon),
+            sf_ti: sf.V3(pose_i["t"] + epsilon),
+            sf_rj: sf.V3(pose_j["r"] + epsilon),
+            sf_tj: sf.V3(pose_j["t"] + epsilon),
+            sf_rij: sf.V3(rotmat_to_rotvec(pose_ij_meas["R"]) + epsilon),
+            sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
+        }
+
+        sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
+        sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
+        sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
+        sf_J_rj_val = sf_J_rj.subs(substitutions).to_numpy()
+
+        # ps. the reason why the index 3: mapped to :3
+        # is because this example uses [t, r], but symforce uses the order of [r, t]
+        sf_Ji = np.zeros((6, 6))
+        sf_Ji[:3, :3] = sf_J_ti_val[3:, :]
+        sf_Ji[3:, :3] = sf_J_ti_val[:3, :]
+        sf_Ji[:3, 3:] = sf_J_ri_val[3:, :]
+        sf_Ji[3:, 3:] = sf_J_ri_val[:3, :]
+
+        sf_Jj = np.zeros((6, 6))
+        sf_Jj[:3, :3] = sf_J_tj_val[3:, :]
+        sf_Jj[3:, :3] = sf_J_tj_val[:3, :]
+        sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
+        sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
+
+        return sf_Ji, sf_Jj
 
 
 @timeit
 def compute_between_factor_residual_and_jacobian(
-    pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast=True
+    pose_i, pose_j, pose_ij_meas, use_symforce_generated_jacobian=True
 ):
     """
     Computes the residual and Jacobians for a pair of poses given a measurement.
@@ -275,6 +385,8 @@ def compute_between_factor_residual_and_jacobian(
 
     # Map rotation error to rotation vector
     r_err = rotmat_to_rotvec(R_err)
+
+    # NOTE: in this example, using [t, r] order for the tangent 6-dim vector.
     residual = np.hstack((t_err, r_err))
 
     @timeit
@@ -296,10 +408,10 @@ def compute_between_factor_residual_and_jacobian(
         return Ji, Jj
 
     # Compute Jacobians analytically
-    if use_jacobian_approx_fast:
-        Ji, Jj = between_factor_jacobian_by_hand_approx()
-    else:
+    if use_symforce_generated_jacobian:
         Ji, Jj = between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas)
+    else:
+        Ji, Jj = between_factor_jacobian_by_hand_approx()
 
     debug_compare_jacobians = False
     if debug_compare_jacobians:
@@ -325,19 +437,22 @@ class PoseGraphOptimizer:
         self,
         max_iterations=50,
         initial_cauchy_c=10.0,
-        use_jacobian_approx_fast=False,
+        use_symforce_generated_jacobian=True,
         num_processes=1,
+        visualize3d_every_iteration=True
     ):
-        self.STATE_DIM = 6
-
-        self.max_iterations = max_iterations
         self.num_processes = num_processes
 
+        self.max_iterations = max_iterations
+        self.termination_threshold = 1e-2 # recommend 1e-2 to 1e-1 for the sample data
+
+        self.STATE_DIM = 6
+
         # jacobian mode
-        self.use_jacobian_approx_fast = use_jacobian_approx_fast  # if False, using Symforce-based auto-generated Symbolic Jacobian
-        if not self.use_jacobian_approx_fast:
+        self.use_symforce_generated_jacobian = use_symforce_generated_jacobian  # if False, using Symforce-based auto-generated Symbolic Jacobian
+        if self.use_symforce_generated_jacobian:
             print(
-                "\n Using symforce-based automatically derived symbolic jacobian... (may slow)\n"
+                "\n Using symforce-based automatically derived symbolic jacobian...\n"
             )
 
         # Robust loss
@@ -357,6 +472,7 @@ class PoseGraphOptimizer:
         # misc
         self.H_fig_saved = False
         self.loud_verbose = True
+        self.visualize3d_every_iteration = visualize3d_every_iteration
 
     @timeit
     def read_g2o_file(self, file_path):
@@ -436,7 +552,8 @@ class PoseGraphOptimizer:
                         t = np.array([x, y, z])
                         poses[node_id] = {"R": R, "t": t}
 
-                    elif tag == "VERTEX_SE2":
+                    # supports both g2o and toro
+                    elif tag == "VERTEX_SE2" or tag == "VERTEX2":
                         node_id = int(data[1])
                         x, y, theta = map(float, data[2:5])
                         R, t = se2_to_se3(x, y, theta)
@@ -463,7 +580,8 @@ class PoseGraphOptimizer:
                         edge = SE3_edge_dict(id_from, id_to, R, t, information_matrix)
                         edges.append(edge)
 
-                    elif tag == "EDGE_SE2":
+                    # supports both g2o and toro
+                    elif tag == "EDGE_SE2" or tag == "EDGE2":
                         id_from = int(data[1])
                         id_to = int(data[2])
                         dx, dy, dtheta = map(float, data[3:6])
@@ -542,7 +660,7 @@ class PoseGraphOptimizer:
 
     @timeit
     def process_edge(self, edge_data):
-        ii, edge, index_map, x, STATE_DIM, use_jacobian_approx_fast = edge_data
+        ii, edge, index_map, x, STATE_DIM, use_symforce_generated_jacobian = edge_data
 
         if self.loud_verbose and (ii % 1000 == 0):
             print(f" [(parr) build_sparse_system] processing edge {ii}/{len(edges)}")
@@ -562,7 +680,7 @@ class PoseGraphOptimizer:
 
         # Compute residual and Jacobians
         residual, Ji, Jj = compute_between_factor_residual_and_jacobian(
-            pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast
+            pose_i, pose_j, pose_ij_meas, use_symforce_generated_jacobian
         )
 
         # Check if edge is non-consecutive (loop closure)
@@ -604,7 +722,7 @@ class PoseGraphOptimizer:
                 self.index_map,
                 self.x,
                 self.STATE_DIM,
-                self.use_jacobian_approx_fast,
+                self.use_symforce_generated_jacobian,
             )
             for ii, edge in enumerate(edges)
         ]
@@ -759,7 +877,7 @@ class PoseGraphOptimizer:
 
             # Compute residual
             residual, _, _ = compute_between_factor_residual_and_jacobian(
-                pose_i, pose_j, pose_ij_meas, use_jacobian_approx_fast=True
+                pose_i, pose_j, pose_ij_meas, use_symforce_generated_jacobian=True
             )
 
             # Apply Cauchy robust kernel if consecutive
@@ -791,7 +909,7 @@ class PoseGraphOptimizer:
         if error_after_opt < error_before_opt:
             # tune params
             if self.lambda_allowed_range[0] < self.lambda_:
-                self.lambda_ /= 5
+                self.lambda_ /= 10.0
 
             # verbose
             print(
@@ -803,9 +921,11 @@ class PoseGraphOptimizer:
         else:
             # tune params
             if self.lambda_ < self.lambda_allowed_range[1]:
-                self.lambda_ *= 5
-            if self.cauchy_c > 1.0:
-                self.cauchy_c /= 2
+                self.lambda_ *= 10.0
+
+            min_cauchy_c = 1.0
+            if self.cauchy_c > min_cauchy_c:
+                self.cauchy_c /= 2.0
 
             # verbose
             print(
@@ -839,11 +959,12 @@ class PoseGraphOptimizer:
         )
 
         # Visualize this iterations's result
-        self.visualize_3d_poses(self.get_optimized_poses())
+        if self.visualize3d_every_iteration:
+            self.visualize_3d_poses(self.get_optimized_poses())
 
         # Check for convergence
         termination_flag = False
-        convergence_error_diff_threshold = 1e-1
+        convergence_error_diff_threshold = self.termination_threshold 
         if (total_error_after_iter_opt < total_error) and (
             np.abs(total_error - total_error_after_iter_opt)
             < convergence_error_diff_threshold
@@ -925,30 +1046,46 @@ if __name__ == "__main__":
     # Successed datasets
     # dataset_name = "data/cubicle.g2o"
     # dataset_name = "data/parking-garage.g2o"
-    dataset_name = "data/input_INTEL_g2o.g2o"
+    # dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
-    # dataset_name = "data/sphere2500.g2o"
+    # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.1rad is added to the relative orientation measurements
+    # dataset_name = "data/FR079_P_toro.graph" 
+    # dataset_name = "data/CSAIL_P_toro.graph" 
+    # dataset_name = "data/FRH_P_toro.graph" 
+    dataset_name = "data/M10000_P_toro.graph" 
 
     # TODO: these datasets still fail
+    # dataset_name = "data/sphere2500.g2o" # need more itertaions ..
+    # dataset_name = "data/grid3D.g2o" #  
     # dataset_name = "data/input_MITb_g2o.g2o"
-    # dataset_name = "data/rim.g2o"
+    # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
 
     """
       Pose-graph optimization
     """
 
-    cauchy_c = 10.0  # robust kernel size
-    num_processes = 8  # if want to use max, multiprocessing.cpu_count()
-    max_iterations = 50
-    use_jacobian_approx_fast = (
-        False  # if False, using Symforce-based auto-generated Symbolic Jacobian
-    )
+    # Using 1 (single-process) is okay because symforce's codgen-based compiled, optimized jacobian calculation is so fast.
+    #  and using bigger does not guarantee the faster speed because it reuiqres additional multi processing costs.
+    num_processes = 1
+
+    # if residual decrease is less than convergence_error_diff_threshold, early terminate.
+    max_iterations = 100
+
+    # robust kernel size
+    cauchy_c = 1.0
+
+    # if False, using hand-written analytic Jacobian
+    use_symforce_generated_jacobian = True
+
+    # iteration debug 
+    visualize3d_every_iteration = True 
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
         initial_cauchy_c=cauchy_c,
-        use_jacobian_approx_fast=use_jacobian_approx_fast,
+        use_symforce_generated_jacobian=use_symforce_generated_jacobian,
         num_processes=num_processes,
+        visualize3d_every_iteration=visualize3d_every_iteration
     )
 
     # read data
@@ -965,3 +1102,6 @@ if __name__ == "__main__":
 
     # Optimize poses
     poses_optimized = pgo.optimize(visual_debug=True)
+
+    # visualization (the final result)
+    pgo.visualize_3d_poses(pgo.get_optimized_poses())
