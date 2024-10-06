@@ -1,0 +1,30 @@
+The optimized (compiled) Jacobian source files generated in /tmp/sf_codegen_sf_between_error_with_jacobians01_zwt315yv:
+
+File copied to: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
+Imported functions from: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
+
+ Using symforce-based automatically derived symbolic jacobian...
+
+Reading (parse) data/FR079_P_toro.graph ...
+ [(parr) build_sparse_system] processing edge 0/1217
+ [(parr) build_sparse_system] processing edge 1000/1217
+
+Iteration 0: The total cost decreased from 13.990 to 0.110  
+ - current lambda is 0.0001000 and cauchy kernel is 1.00  
+ - |delta_x|: 5.0709
+
+ [(parr) build_sparse_system] processing edge 0/1217
+ [(parr) build_sparse_system] processing edge 1000/1217
+
+Iteration 1: The total cost decreased from 0.110 to 0.077  
+ - current lambda is 0.0000100 and cauchy kernel is 1.00  
+ - |delta_x|: 3.4839
+
+ [(parr) build_sparse_system] processing edge 0/1217
+ [(parr) build_sparse_system] processing edge 1000/1217
+
+Iteration 2: The total cost decreased from 0.077 to 0.073  
+ - current lambda is 0.0000010 and cauchy kernel is 1.00  
+ - |delta_x|: 6.4634
+
+Converged.

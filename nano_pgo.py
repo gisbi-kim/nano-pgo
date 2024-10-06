@@ -224,7 +224,7 @@ print(
     )
 )
 
-# copy here and import it  
+# copy here and import it
 for f in between_error_codgen_with_jacobians_data.generated_files:
     rel_path = f.relative_to(between_error_codgen_with_jacobians_data.output_dir)
 
@@ -287,15 +287,10 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
         ),
     )
 
-    using_optimized_compiled_one = True
+    using_optimized_compiled_one = True  # recommend to use True
 
     # fast
     if using_optimized_compiled_one:
-        if False:
-            print("Residual:", res)
-            print("Jacobian wrt Ti:\n", res_D_Ti)
-            print("Jacobian wrt Tj:\n", res_D_Tj)
-
         # ps. the reason why the index 3: mapped to :3
         # is because this example uses [t, r], but symforce uses the order of [r, t]
         sf_Ji = np.zeros((6, 6))
@@ -309,6 +304,12 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
         sf_Jj[3:, :3] = res_D_Tj[:3, 3:]
         sf_Jj[:3, 3:] = res_D_Tj[3:, :3]
         sf_Jj[3:, 3:] = res_D_Tj[:3, :3]
+
+        # a verbose for debug or education,
+        #  to compare with the hand-written, and the non-optimized Jacobians.
+        if False:
+            print("Jacobian wrt Ti:\n", sf_Jj)
+            print("Jacobian wrt Tj:\n", sf_Jj)
 
         return sf_Ji, sf_Jj
 
@@ -439,12 +440,12 @@ class PoseGraphOptimizer:
         initial_cauchy_c=10.0,
         use_symforce_generated_jacobian=True,
         num_processes=1,
-        visualize3d_every_iteration=True
+        visualize3d_every_iteration=True,
     ):
         self.num_processes = num_processes
 
         self.max_iterations = max_iterations
-        self.termination_threshold = 1e-2 # recommend 1e-2 to 1e-1 for the sample data
+        self.termination_threshold = 1e-2  # recommend 1e-2 to 1e-1 for the sample data
 
         self.STATE_DIM = 6
 
@@ -964,7 +965,7 @@ class PoseGraphOptimizer:
 
         # Check for convergence
         termination_flag = False
-        convergence_error_diff_threshold = self.termination_threshold 
+        convergence_error_diff_threshold = self.termination_threshold
         if (total_error_after_iter_opt < total_error) and (
             np.abs(total_error - total_error_after_iter_opt)
             < convergence_error_diff_threshold
@@ -1044,19 +1045,19 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    # dataset_name = "data/cubicle.g2o"
-    # dataset_name = "data/parking-garage.g2o"
-    # dataset_name = "data/input_INTEL_g2o.g2o"
+    dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
-    # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.1rad is added to the relative orientation measurements
-    # dataset_name = "data/FR079_P_toro.graph" 
-    # dataset_name = "data/CSAIL_P_toro.graph" 
-    # dataset_name = "data/FRH_P_toro.graph" 
-    dataset_name = "data/M10000_P_toro.graph" 
+    # dataset_name = "data/FR079_P_toro.graph"
+    # dataset_name = "data/CSAIL_P_toro.graph"
+    # dataset_name = "data/FRH_P_toro.graph"
+    # dataset_name = "data/parking-garage.g2o"
+    # dataset_name = "data/M10000_P_toro.graph"
+    # dataset_name = "data/cubicle.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/sphere2500.g2o" # need more itertaions ..
-    # dataset_name = "data/grid3D.g2o" #  
+    # dataset_name = "data/grid3D.g2o"
+    # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
 
@@ -1072,20 +1073,20 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # robust kernel size
-    cauchy_c = 1.0
+    cauchy_c = 10.0
 
     # if False, using hand-written analytic Jacobian
-    use_symforce_generated_jacobian = True
+    use_symforce_generated_jacobian = True  # recommend to use True
 
-    # iteration debug 
-    visualize3d_every_iteration = True 
+    # iteration debug
+    visualize3d_every_iteration = False
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
         initial_cauchy_c=cauchy_c,
         use_symforce_generated_jacobian=use_symforce_generated_jacobian,
         num_processes=num_processes,
-        visualize3d_every_iteration=visualize3d_every_iteration
+        visualize3d_every_iteration=visualize3d_every_iteration,
     )
 
     # read data

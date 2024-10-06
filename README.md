@@ -1,5 +1,7 @@
 # nano-pgo
  ![example results](docs/results/visualization/readme.png)
+*Figure 1: Example Results Visualization. More examples can be found [here](docs/results/visualization).*
+
 - Features 
     - For an education purpose
     - From-scratch pose-graph optimization implementation
@@ -49,6 +51,8 @@
 - SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
 - You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`.
 ![example results 2](docs/comparison_jacobian_modes/parking-garage/summary.png)
+*Figure 2: Auto-generated Symbolic Jacobian's effectiveness.*
+
 - You can first build (compile) the Jacobian of the relative SE(3) error like this,
 
     ```python
@@ -142,6 +146,43 @@
         sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
 
         return sf_Ji, sf_Jj
+    ```
+- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codgen API is like:
+    ```python
+    # optimized code compliation process
+    def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
+        return Tij.inverse() * (Ti.inverse() * Tj)
+
+
+    between_error_codgen = codegen.Codegen.function(
+        func=sf_between_error,
+        config=codegen.PythonConfig(),
+    )
+
+    between_error_codgen_with_jacobians = between_error_codgen.with_jacobians(
+        which_args=["Ti", "Tj"],
+        include_results=True,
+    )
+
+    between_error_codgen_with_jacobians_data = (
+        between_error_codgen_with_jacobians.generate_function()
+    )
+
+    # copy the generated source file and import ... 
+    # ...
+
+    # Then you can use like this 
+    #  (Using the above auto-geneated functions within the copied __between_error_codgen.py file)
+    _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_i["r"])), t=pose_i["t"]),
+        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quaternion(pose_j["r"])), t=pose_j["t"]),
+        Tij=sym.Pose3(
+            R=sym.rot3.Rot3(rotvec_to_quaternion(rotmat_to_rotvec(pose_ij_meas["R"]))),
+            t=pose_ij_meas["t"],
+        ),
+    )
+
+    # see `between_factor_jacobian_by_symforce` function in the `nano_pgo.py` for the details.
     ```
 
 ## TODO

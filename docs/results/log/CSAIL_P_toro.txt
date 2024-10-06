@@ -1,0 +1,51 @@
+The optimized (compiled) Jacobian source files generated in /tmp/sf_codegen_sf_between_error_with_jacobians01_qm257bs_:
+
+File copied to: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
+Imported functions from: /home/gskim/Documents/git/nano-pgo0/nano-pgo/__between_error_codgen.py
+
+ Using symforce-based automatically derived symbolic jacobian...
+
+Reading (parse) data/CSAIL_P_toro.graph ...
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 0: The total cost decreased from 86.859 to 22.747  
+ - current lambda is 0.0001000 and cauchy kernel is 1.00  
+ - |delta_x|: 34.0418
+
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 1: The total cost decreased from 22.747 to 0.495  
+ - current lambda is 0.0000100 and cauchy kernel is 1.00  
+ - |delta_x|: 36.6186
+
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 2: The total cost decreased from 0.495 to 0.239  
+ - current lambda is 0.0000010 and cauchy kernel is 1.00  
+ - |delta_x|: 28.7998
+
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 3: The total cost decreased from 0.239 to 0.109  
+ - current lambda is 0.0000001 and cauchy kernel is 1.00  
+ - |delta_x|: 20.2576
+
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 4: The total cost did not decrease (from 0.109 to 0.112).  
+ - increase lambda to 0.0000010 and cauchy kernel to 1.00  
+ - |delta_x|: 40.8620
+
+ [(parr) build_sparse_system] processing edge 0/1172
+ [(parr) build_sparse_system] processing edge 1000/1172
+
+Iteration 5: The total cost decreased from 0.109 to 0.108  
+ - current lambda is 0.0000001 and cauchy kernel is 1.00  
+ - |delta_x|: 10.7066
+
+Converged.
