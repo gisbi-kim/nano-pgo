@@ -56,7 +56,7 @@
     
 ## Symforce-based Auto-generated Jacobians 
 - SymForce eliminates the need for tedious and error-prone manual Jacobian derivations.
-- You can enjoy this feature by setting `self.use_jacobian_approx_fast=False` and `debug_compare_jacobians=True`.
+- You can enjoy this feature by setting `self.use_symforce_generated_jacobian=True` and `debug_compare_jacobians=True`.
 ![example results 3](docs/comparison_jacobian_modes/parking-garage/summary.png)
 *Figure 3: Auto-generated Symbolic Jacobian's effectiveness.*
 
