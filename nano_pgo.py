@@ -863,7 +863,7 @@ class PoseGraphOptimizer:
             for ii, edge in enumerate(edges)
         ]
         with multiprocessing.Pool(processes=self.num_processes) as pool:
-            results = pool.map(self.process_edge, edge_data_list)
+            between_factor_blocks_list = pool.map(self.process_edge, edge_data_list)
 
         # Second step: Assemble H and b with a for loop
         H_row = []
@@ -872,8 +872,10 @@ class PoseGraphOptimizer:
         b = np.zeros(self.STATE_DIM * len(self.index_map))
         total_error = 0.0
 
-        for result in results:
-            idx_i, idx_j, Hii, Hjj, Hij, bi, bj, edge_error = result
+        for between_factor_block_result in between_factor_blocks_list:
+            idx_i, idx_j, Hii, Hjj, Hij, bi, bj, edge_error = (
+                between_factor_block_result
+            )
 
             # Accumulate total error
             total_error += edge_error
