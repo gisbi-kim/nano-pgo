@@ -60,7 +60,7 @@
 ![example results 3](docs/comparison_jacobian_modes/parking-garage/summary.png)
 *Figure 3: Auto-generated Symbolic Jacobian's effectiveness.*
 
-- You can first build (compile) the Jacobian of the relative SE(3) error like this,
+- You can first automatically generate the (symbolic) Jacobian of the relative SE(3) error like this,
 
     ```python
     import symforce.symbolic as sf
@@ -154,7 +154,7 @@
 
         return sf_Ji, sf_Jj
     ```
-- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's codegen functionality, it is possible to perform compilation and code optimization, resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec). The example of using the symforce codegen API is like:
+- However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's [codegen](https://symforce.org/tutorials/codegen_tutorial.html) functionality, it is possible to perform compilation and code optimization (i.e., compile the Jacobian), resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec, at a single core of AMD Ryzen 7 8845HS CPU). An example of using the Symforce `codegen` API is like:
     ```python
     # optimized code compliation process
     def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
