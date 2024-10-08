@@ -37,7 +37,8 @@
 - `$ python nano_pgo.py`
     - It's also recommended to compare the results from GTSAM (better and faster!) by using `baseline_gtsam.py`.
 - Note that the nano_pgo.py's goal is a maximized transparency of all logics and theories from state representations to building and solving linear systems.
-
+- [Demo video can be found here](https://youtu.be/tEdIfHYY3uQ?si=sKo4jC2UZS_uiSSR).
+ 
 ## Goal 
 - Understand 
     - what is pose-graph optimization.
