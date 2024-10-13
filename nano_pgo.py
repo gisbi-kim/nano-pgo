@@ -629,6 +629,120 @@ class PoseGraphOptimizer:
         epsilon = 1e-5
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
+    def relax_rotation(self):
+        num_poses = len(self.poses_initial)
+        num_edges = len(self.edges)
+        print(f"num_poses: {num_poses}")
+        print(f"num_edges: {num_edges}")
+
+        num_epochs = 10
+        for epoch in range(num_epochs):
+            print(f"\n\n ##### epoch {epoch}")
+            # build the system
+            H_row = []
+            H_col = []
+            H_data = []
+            b = np.zeros(3 * len(self.index_map))
+
+            for edge in self.edges:
+                from_pose_id = edge["from"]
+                to_pose_id = edge["to"]
+
+                Ri = self.poses_initial[from_pose_id]["R"]
+                Rj = self.poses_initial[to_pose_id]["R"]
+
+                Rij_meas = edge["R"]
+
+                from_pose_idx_in_matrix = self.index_map[from_pose_id]
+                to_pose_idx_in_matrix = self.index_map[to_pose_id]
+                for row_ii in range(3):
+                    res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
+                    J_i = Rij_meas.T
+                    J_j = -np.eye(3)
+
+                    H_ii = J_i.T @ J_i
+                    b_i = J_i.T @ res
+
+                    H_jj = J_j.T @ J_j
+                    b_j = J_j.T @ res
+
+                    H_ij = J_i.T @ J_j
+                    H_ji = J_j.T @ J_i
+
+                    for i in range(3):
+                        for j in range(3):
+                            H_row.append((3 * from_pose_idx_in_matrix) + i)
+                            H_col.append((3 * from_pose_idx_in_matrix) + j)
+                            H_data.append(H_ii[i, j])
+
+                    for i in range(3):
+                        for j in range(3):
+                            H_row.append((3 * to_pose_idx_in_matrix) + i)
+                            H_col.append((3 * to_pose_idx_in_matrix) + j)
+                            H_data.append(H_jj[i, j])
+
+                    for i in range(3):
+                        for j in range(3):
+                            H_row.append((3 * from_pose_idx_in_matrix) + i)
+                            H_col.append((3 * to_pose_idx_in_matrix) + j)
+                            H_data.append(H_ij[i, j])
+
+                    for i in range(3):
+                        for j in range(3):
+                            H_row.append((3 * to_pose_idx_in_matrix) + i)
+                            H_col.append((3 * from_pose_idx_in_matrix) + j)
+                            H_data.append(H_ji[i, j])
+
+                    b[
+                        (3 * from_pose_idx_in_matrix) : (3 * from_pose_idx_in_matrix) + 3
+                    ] -= b_i
+
+                    b[(3 * to_pose_idx_in_matrix) : (3 * to_pose_idx_in_matrix) + 3] -= b_j
+
+            # solve the system
+            H = sp.coo_matrix(
+                (H_data, (H_row, H_col)),
+                shape=(3 * num_poses, 3 * num_poses),
+            )
+
+            H = H.tocsc()
+            factor = cholmod.cholesky(H)
+
+            delta_x = factor.solve_A(b)
+            print(f" {epoch}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}")
+
+            # Function to project a matrix back to SO(3)
+            def project_to_so3(R):
+                # Perform SVD
+                U, _, Vt = np.linalg.svd(R)
+                # Ensure det(U @ Vt) = 1, if not, flip the sign of the last column of U
+                if np.linalg.det(U @ Vt) < 0:
+                    U[:, -1] *= -1
+                # Return the orthogonal matrix
+                return U @ Vt
+
+            # update the rotmats
+            for pose_id, pose in self.poses_initial.items():
+                R_orig = pose["R"].copy()
+
+                for row_ii in range(3):
+                    idx = self.index_map[pose_id]
+                    pose["R"][row_ii, :] += delta_x[(3 * idx) : (3 * idx) + 3]
+
+                R_updated = pose["R"].copy()
+
+                # Project the updated R back to SO(3) to ensure it's a valid rotation matrix
+                pose["R"] = project_to_so3(pose["R"])
+
+                self.poses_initial[pose_id]["R"] = pose["R"]
+                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(pose["R"]) 
+
+                if 0:
+                    print(f"\npose[R] before\n {R_orig}")
+                    print(f"pose[R] updated\n {R_updated}")
+                    print(f"pose[R] after projection to SO(3)\n {pose['R']}")
+
+
     def initialize_variables_container(self, index_map):
         """
         Initializes the state vector containing all pose variables.
@@ -642,6 +756,10 @@ class PoseGraphOptimizer:
         Returns:
             np.ndarray: The initialized state vector with shape (6 * number_of_poses,).
         """
+
+        if 1:
+            self.relax_rotation()
+
         x = np.zeros(6 * self.num_poses)
         for pose_id, pose in self.poses_initial.items():
             idx = index_map[pose_id]
@@ -1243,7 +1361,7 @@ if __name__ == "__main__":
       Dataset selection
     """
     # Successed datasets
-    dataset_name = "data/input_INTEL_g2o.g2o"
+    # dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
     # dataset_name = "data/FR079_P_toro.graph"
     # dataset_name = "data/CSAIL_P_toro.graph"
@@ -1253,7 +1371,7 @@ if __name__ == "__main__":
     # dataset_name = "data/cubicle.g2o"
 
     # TODO: these datasets still fail
-    # dataset_name = "data/sphere2500.g2o" # need more itertaions ..
+    dataset_name = "data/sphere2500.g2o" # need more itertaions ..
     # dataset_name = "data/grid3D.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
