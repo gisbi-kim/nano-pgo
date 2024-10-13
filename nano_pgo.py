@@ -643,7 +643,7 @@ class PoseGraphOptimizer:
 
         num_elements_per_pose = num_variables_per_pose * variable_dim
 
-        num_epochs = 10
+        num_epochs = 3
         for epoch in range(num_epochs):
             print(f"\n\n ##### epoch {epoch}")
             # build the system
@@ -651,6 +651,8 @@ class PoseGraphOptimizer:
             H_col = []
             H_data = []
             b = np.zeros(variable_dim * num_variables)
+
+            information_edge = 1.0 * np.identity(3)
 
             for edge in self.edges:
                 from_pose_id = edge["from"]
@@ -674,7 +676,7 @@ class PoseGraphOptimizer:
                     J_i = Rij_meas.T
                     J_j = -np.eye(3)
 
-                    squared_res = res.T @ res
+                    squared_res = res.T @ information_edge @ res
                     if abs(from_pose_id - to_pose_id) == 1:
                         rot_weight = 1
                     else:
@@ -684,14 +686,14 @@ class PoseGraphOptimizer:
                     J_j *= rot_weight
                     res *= rot_weight
 
-                    H_ii = J_i.T @ J_i
-                    b_i = J_i.T @ res
+                    H_ii = J_i.T @ information_edge @ J_i
+                    b_i = J_i.T @ information_edge @ res
 
-                    H_jj = J_j.T @ J_j
-                    b_j = J_j.T @ res
+                    H_jj = J_j.T @ information_edge @ J_j
+                    b_j = J_j.T @ information_edge @ res
 
-                    H_ij = J_i.T @ J_j
-                    H_ji = J_j.T @ J_i
+                    H_ij = J_i.T @ information_edge @ J_j
+                    H_ji = J_j.T @ information_edge @ J_i
 
                     for i in range(variable_dim):
                         for j in range(variable_dim):
@@ -772,14 +774,14 @@ class PoseGraphOptimizer:
             # Compute the residual (error) between current and initial estimates
             pose_idx_prior = self.idx_prior
 
-            R0_meas = self.poses_initial[pose_idx_prior]["R"].copy()
-            R0_est = R0_meas.copy()
-            residual_prior = (R0_meas - R0_est).flatten()
+            R0_meas = np.identity(3)  # force to be eye
+            R0_est = self.poses_initial[pose_idx_prior]["R"].copy()
+            residual_prior = (R0_est - R0_meas).flatten()
 
             # Jacobian of the prior (identity matrix since it's a direct difference)
-            J_prior = -np.identity(9)
+            J_prior = np.identity(9)
 
-            information_prior = 1e9 * np.identity(9) 
+            information_prior = 1e9 * np.identity(9)
             # Compute the prior's contribution to H and b
             H_prior = J_prior.T @ information_prior @ J_prior
             b_prior = J_prior.T @ information_prior @ residual_prior
@@ -825,10 +827,10 @@ class PoseGraphOptimizer:
                 return R_star
 
             # update the rotmats
-            verbose = False 
+            verbose = False
             for pose_id, pose in self.poses_initial.items():
                 if verbose:
-                    print("\n\n") 
+                    print("\n\n")
                 R_orig = pose["R"].copy()
 
                 M = R_orig.copy()  # eq 22, icra15, Luca Carlone, et al.
@@ -1163,10 +1165,10 @@ class PoseGraphOptimizer:
             xi_prior_meas = np.hstack((pose_prior_meas["t"], pose_prior_meas["r"]))
 
             # Compute the residual (error) between current and initial estimates
-            residual_prior = xi_prior_meas - xi_prior
+            residual_prior = xi_prior - xi_prior_meas
 
             # Jacobian of the prior (identity matrix since it's a direct difference)
-            J_prior = -np.identity(self.STATE_DIM)
+            J_prior = np.identity(self.STATE_DIM)
 
             # Compute the prior's contribution to H and b
             H_prior = J_prior.T @ self.information_prior @ J_prior
@@ -1488,7 +1490,7 @@ if __name__ == "__main__":
     # dataset_name = "data/cubicle.g2o"
 
     # TODO: these datasets still fail
-    dataset_name = "data/sphere2500.g2o" # need more itertaions ..
+    dataset_name = "data/sphere2500.g2o"  # need more itertaions ..
     # dataset_name = "data/grid3D.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
@@ -1531,7 +1533,8 @@ if __name__ == "__main__":
     # add constraints
     pgo.add_edges(edges)
 
-    prior_node_idx = 1000 # must be positive
+    # num_poses = len(poses_initial)
+    prior_node_idx = 2000  # must be positive
     pgo.add_prior(prior_node_idx)
 
     # Optimize poses
