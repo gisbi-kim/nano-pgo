@@ -641,7 +641,7 @@ class PoseGraphOptimizer:
 
         num_elements_per_pose = num_variables_per_pose * variable_dim
 
-        num_epochs = 5
+        num_epochs = 1
         for epoch in range(num_epochs):
             print(f"\n\n ##### epoch {epoch}")
             # build the system
@@ -663,18 +663,24 @@ class PoseGraphOptimizer:
                 to_pose_idx_in_matrix = self.index_map[to_pose_id]
 
                 for row_ii in range(3):
+                    # e = meas - pred 
                     res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
+                    J_i = Rij_meas.T 
+                    J_j = -np.eye(3) 
 
                     squared_res = res.T @ res
                     if abs(from_pose_id - to_pose_id) == 1:
-                        weight = 1.0
+                        weight = 1
                     else:
                         weight = self.cauchy_weight(squared_res)
-                        print(from_pose_id, to_pose_id, weight)
 
-                    J_i = Rij_meas.T * weight
-                    J_j = -np.eye(3) * weight
-                    res = res * weight
+                    J_i *= weight
+                    J_j *= weight
+                    res *= weight
+
+                    if from_pose_idx_in_matrix == 0:
+                        J_i = np.eye(3)
+                        res *= 0.0
 
                     H_ii = J_i.T @ J_i
                     b_i = J_i.T @ res
@@ -775,15 +781,18 @@ class PoseGraphOptimizer:
             print(f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}")
             time.sleep(1)
 
-            # Function to project a matrix back to SO(3)
-            def project_to_so3(R):
-                # Perform SVD
-                U, _, Vt = np.linalg.svd(R)
-                # Ensure det(U @ Vt) = 1, if not, flip the sign of the last column of U
-                if np.linalg.det(U @ Vt) < 0:
-                    U[:, -1] *= -1
-                # Return the orthogonal matrix
-                return U @ Vt
+            def eq23icra15luca(M):
+                # SVD 분해 M = U * D * V^T
+                U, D, Vt = np.linalg.svd(M)
+                
+                # det(U * V^T)를 사용해 1 또는 -1로 값을 맞추기 위한 대각 행렬 생성
+                det_sign = np.sign(np.linalg.det(U @ Vt))
+                S = np.diag([1, 1, det_sign])
+                
+                # 가장 가까운 회전 행렬 R_star 구하기
+                R_star = U @ S @ Vt
+                
+                return R_star
 
             # update the rotmats
             for pose_id, pose in self.poses_initial.items():
@@ -793,18 +802,17 @@ class PoseGraphOptimizer:
                     idx = self.index_map[pose_id]
                     pose["R"][row_ii, :] += delta_x[(3 * idx) : (3 * idx) + 3]
 
-                R_updated = pose["R"].copy()
+                M = pose["R"].copy() # eq 22, icra15, Luca Carlone, et al.
 
-                # Project the updated R back to SO(3) to ensure it's a valid rotation matrix
-                pose["R"] = project_to_so3(pose["R"])
+                R_star = eq23icra15luca(M)
 
-                self.poses_initial[pose_id]["R"] = pose["R"]
-                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(pose["R"])
+                self.poses_initial[pose_id]["R"] = R_star
+                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
 
-                if 0:
+                if 1:
                     print(f"\npose_id {pose_id}")
                     print(f"pose[R] before\n {R_orig}")
-                    print(f"pose[R] updated\n {R_updated}")
+                    print(f"pose[R] updated\n {R_star}")
                     print(f"pose[R] after projection to SO(3)\n {pose['R']}")
 
     def initialize_variables_container(self, index_map):
@@ -1453,7 +1461,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # robust kernel size
-    cauchy_c = 1.0
+    cauchy_c = 10.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
