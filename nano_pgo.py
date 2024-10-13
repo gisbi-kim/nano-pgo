@@ -464,8 +464,8 @@ class PoseGraphOptimizer:
         self.lambda_allowed_range = [1e-7, 1e5]
 
         # weight ratio
-        self.loop_information_matrix = 1.0 * np.identity(6)
-        self.odom_information_matrix = 1.0 * np.identity(6)
+        self.loop_information_matrix = np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]) # [t, r]
+        self.odom_information_matrix = np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]) # [t, r]
 
         # A single prior
         self.add_prior_to_prevent_gauge_freedom = True
@@ -777,6 +777,7 @@ class PoseGraphOptimizer:
             R0_meas = np.identity(3)  # force to be eye
             R0_est = self.poses_initial[pose_idx_prior]["R"].copy()
             residual_prior = (R0_est - R0_meas).flatten()
+            print(f"residual_prior {residual_prior}")
 
             # Jacobian of the prior (identity matrix since it's a direct difference)
             J_prior = np.identity(9)
@@ -1309,7 +1310,7 @@ class PoseGraphOptimizer:
             if self.lambda_ < self.lambda_allowed_range[1]:
                 self.lambda_ *= 10.0
 
-            min_cauchy_c = 1.0
+            min_cauchy_c = 5.0
             if self.cauchy_c > min_cauchy_c:
                 self.cauchy_c /= 2.0
 
@@ -1508,7 +1509,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # robust kernel size
-    cauchy_c = 2.0
+    cauchy_c = 10.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
@@ -1534,7 +1535,7 @@ if __name__ == "__main__":
     pgo.add_edges(edges)
 
     # num_poses = len(poses_initial)
-    prior_node_idx = 2000  # must be positive
+    prior_node_idx = 0  # must be positive
     pgo.add_prior(prior_node_idx)
 
     # Optimize poses
