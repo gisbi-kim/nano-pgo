@@ -440,7 +440,10 @@ class PoseGraphOptimizer:
         initial_cauchy_c=10.0,
         use_symforce_generated_jacobian=True,
         num_processes=1,
+        use_chordal_rotation_initialization=True,
         visualize3d_every_iteration=True,
+        loop_information_matrix=np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]),  # [t, r]
+        odom_information_matrix=np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]),  # [t, r]
     ):
         self.num_processes = num_processes
 
@@ -463,9 +466,12 @@ class PoseGraphOptimizer:
         self.lambda_ = 0.001  # Initial damping factor, for LM opt
         self.lambda_allowed_range = [1e-7, 1e5]
 
+        # rotation initialization
+        self.use_chordal_rotation_initialization = use_chordal_rotation_initialization
+
         # weight ratio
-        self.loop_information_matrix = np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]) # [t, r]
-        self.odom_information_matrix = np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]) # [t, r]
+        self.loop_information_matrix = loop_information_matrix  # [t, r]
+        self.odom_information_matrix = odom_information_matrix  # [t, r]
 
         # A single prior
         self.add_prior_to_prevent_gauge_freedom = True
@@ -630,12 +636,13 @@ class PoseGraphOptimizer:
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
     def relax_rotation(self):
-        import time
+        """
+        see section III.B of
+        2015 ICRAInitialization Techniques for 3D SLAM: a Survey on Rotation Estimation and its Use in Pose Graph Optimization
+        """
 
         num_poses = len(self.poses_initial)
         num_edges = len(self.edges)
-        print(f"num_poses: {num_poses}")
-        print(f"num_edges: {num_edges}")
 
         variable_dim = 3  # a single rotmat's row
         num_variables_per_pose = 3
@@ -645,7 +652,7 @@ class PoseGraphOptimizer:
 
         num_epochs = 3
         for epoch in range(num_epochs):
-            print(f"\n\n ##### epoch {epoch}")
+            print(f"##### [relax_rotation] Rotation initialization epoch {epoch}")
             # build the system
             H_row = []
             H_col = []
@@ -774,10 +781,9 @@ class PoseGraphOptimizer:
             # Compute the residual (error) between current and initial estimates
             pose_idx_prior = self.idx_prior
 
-            R0_meas = np.identity(3)  # force to be eye
+            R0_meas = np.identity(3)  # e.g., force to be eye
             R0_est = self.poses_initial[pose_idx_prior]["R"].copy()
             residual_prior = (R0_est - R0_meas).flatten()
-            print(f"residual_prior {residual_prior}")
 
             # Jacobian of the prior (identity matrix since it's a direct difference)
             J_prior = np.identity(9)
@@ -810,19 +816,15 @@ class PoseGraphOptimizer:
             delta_x = factor.solve_A(b)
 
             print(
-                f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
+                f" epoch {epoch}, rot rows vec dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
             )
-            time.sleep(1)
 
             def eq23icra15luca(M):
-                # SVD 분해 M = U * D * V^T
                 U, D, Vt = np.linalg.svd(M)
 
-                # det(U * V^T)를 사용해 1 또는 -1로 값을 맞추기 위한 대각 행렬 생성
                 det_sign = np.sign(np.linalg.det(U @ Vt))
                 S = np.diag([1, 1, det_sign])
 
-                # 가장 가까운 회전 행렬 R_star 구하기
                 R_star = U @ S @ Vt
 
                 return R_star
@@ -830,8 +832,6 @@ class PoseGraphOptimizer:
             # update the rotmats
             verbose = False
             for pose_id, pose in self.poses_initial.items():
-                if verbose:
-                    print("\n\n")
                 R_orig = pose["R"].copy()
 
                 M = R_orig.copy()  # eq 22, icra15, Luca Carlone, et al.
@@ -847,21 +847,10 @@ class PoseGraphOptimizer:
                     ]
                     M[row_ii, :] += delta_x_block
 
-                    if verbose:
-                        print(f"M[row_ii, :] : {M[row_ii, :]}")
-                        print(f"delta_x_block: {delta_x_block}")
-
                 R_star = eq23icra15luca(M)
 
                 self.poses_initial[pose_id]["R"] = R_star
                 self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
-
-                if verbose:
-                    print(f"pose_id {pose_id}")
-                    print(f"pose[R] before\n {R_orig}")
-                    print(f"pose[R] chordal init\n {M}")
-                    print(f"pose[R] updated\n {R_star}")
-                    print(self.poses_initial[pose_id])
 
     def initialize_variables_container(self, index_map):
         """
@@ -877,7 +866,7 @@ class PoseGraphOptimizer:
             np.ndarray: The initialized state vector with shape (6 * number_of_poses,).
         """
 
-        if 1:
+        if self.use_chordal_rotation_initialization:
             self.relax_rotation()
 
         x = np.zeros(6 * self.num_poses)
@@ -1310,7 +1299,7 @@ class PoseGraphOptimizer:
             if self.lambda_ < self.lambda_allowed_range[1]:
                 self.lambda_ *= 10.0
 
-            min_cauchy_c = 5.0
+            min_cauchy_c = 2.0
             if self.cauchy_c > min_cauchy_c:
                 self.cauchy_c /= 2.0
 
@@ -1489,10 +1478,10 @@ if __name__ == "__main__":
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
+    # dataset_name = "data/sphere2500.g2o"  # need more itertaions ..
 
     # TODO: these datasets still fail
-    dataset_name = "data/sphere2500.g2o"  # need more itertaions ..
-    # dataset_name = "data/grid3D.g2o"
+    dataset_name = "data/grid3D.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
@@ -1508,14 +1497,25 @@ if __name__ == "__main__":
     # if residual decrease is less than convergence_error_diff_threshold, early terminate.
     max_iterations = 100
 
-    # robust kernel size
-    cauchy_c = 10.0
+    # initial robust kernel size
+    cauchy_c = 10.0 
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
 
+    # rotation initialization (recommend to test for sphere2500, mandatory to use)
+    use_chordal_rotation_initialization = True
+
     # iteration-wise debug
     visualize3d_every_iteration = True
+
+    # general noise for good initialized datasets
+    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+    # noise for sphere2500
+    loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
+    odom_information_matrix = np.diag([0.5, 0.5, 0.5, 100.0, 100.0, 100.0])
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
@@ -1523,6 +1523,9 @@ if __name__ == "__main__":
         use_symforce_generated_jacobian=use_symforce_generated_jacobian,
         num_processes=num_processes,
         visualize3d_every_iteration=visualize3d_every_iteration,
+        use_chordal_rotation_initialization=use_chordal_rotation_initialization,
+        loop_information_matrix=loop_information_matrix,
+        odom_information_matrix=odom_information_matrix,
     )
 
     # read data
