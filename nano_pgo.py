@@ -661,8 +661,12 @@ class PoseGraphOptimizer:
 
                 Rij_meas = edge["R"].copy()
 
-                from_pose_idx_in_matrix = self.index_map[from_pose_id]
-                to_pose_idx_in_matrix = self.index_map[to_pose_id]
+                from_pose_idx_in_matrix = self.index_map[
+                    from_pose_id
+                ]  # int, so alreayd deep.copy()ed
+                to_pose_idx_in_matrix = self.index_map[
+                    to_pose_id
+                ]  # int, so alreayd deep.copy()ed
 
                 for row_ii in range(3):
                     # e = meas - pred
@@ -674,7 +678,7 @@ class PoseGraphOptimizer:
                     if abs(from_pose_id - to_pose_id) == 1:
                         rot_weight = 1
                     else:
-                        rot_weight = 0.0 # self.cauchy_weight(squared_res)
+                        rot_weight = self.cauchy_weight(squared_res)
 
                     J_i *= rot_weight
                     J_j *= rot_weight
@@ -688,7 +692,7 @@ class PoseGraphOptimizer:
 
                     H_ij = J_i.T @ J_j
                     H_ji = J_j.T @ J_i
-                
+
                     for i in range(variable_dim):
                         for j in range(variable_dim):
                             H_row.append(
@@ -763,6 +767,30 @@ class PoseGraphOptimizer:
                         + variable_dim
                     ] -= b_j
 
+            ###
+            # prior
+            # Compute the residual (error) between current and initial estimates
+            residual_prior = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+            # Jacobian of the prior (identity matrix since it's a direct difference)
+            J_prior = np.identity(9)
+
+            # Compute the prior's contribution to H and b
+            H_prior = J_prior.T @ J_prior
+            b_prior = J_prior.T @ residual_prior
+
+            # Append prior contributions to H_data, H_row, and H_col
+            pose_idx_prior = 0
+            for i in range(9):
+                for j in range(9):
+                    H_row.append(9 * pose_idx_prior + i)
+                    H_col.append(9 * pose_idx_prior + j)
+                    H_data.append(H_prior[i, j])
+
+            # Update b with the prior contribution
+            b[(9 * pose_idx_prior) : (9 * pose_idx_prior) + 9] -= b_prior
+
+            ###
             # solve the system
             H = sp.coo_matrix(
                 (H_data, (H_row, H_col)),
@@ -797,7 +825,7 @@ class PoseGraphOptimizer:
                 print("\n\n")
                 R_orig = pose["R"].copy()
 
-                M = pose["R"].copy()  # eq 22, icra15, Luca Carlone, et al.
+                M = R_orig.copy()  # eq 22, icra15, Luca Carlone, et al.
                 for row_ii in range(3):
                     pose_idx_in_matrix = self.index_map[pose_id]
                     delta_x_block = delta_x[
