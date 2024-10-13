@@ -635,14 +635,20 @@ class PoseGraphOptimizer:
         print(f"num_poses: {num_poses}")
         print(f"num_edges: {num_edges}")
 
-        num_epochs = 10
+        variable_dim = 3  # a single rotmat's row
+        num_variables_per_pose = 3
+        num_variables = num_poses * num_variables_per_pose
+
+        num_elements_per_pose = num_variables_per_pose * variable_dim
+
+        num_epochs = 3
         for epoch in range(num_epochs):
             print(f"\n\n ##### epoch {epoch}")
             # build the system
             H_row = []
             H_col = []
             H_data = []
-            b = np.zeros(3 * len(self.index_map))
+            b = np.zeros(variable_dim * num_variables)
 
             for edge in self.edges:
                 from_pose_id = edge["from"]
@@ -669,47 +675,95 @@ class PoseGraphOptimizer:
                     H_ij = J_i.T @ J_j
                     H_ji = J_j.T @ J_i
 
-                    for i in range(3):
-                        for j in range(3):
-                            H_row.append((3 * from_pose_idx_in_matrix) + i)
-                            H_col.append((3 * from_pose_idx_in_matrix) + j)
+                    for i in range(variable_dim):
+                        for j in range(variable_dim):
+                            H_row.append(
+                                (num_elements_per_pose * from_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + i
+                            )
+                            H_col.append(
+                                (num_elements_per_pose * from_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + j
+                            )
                             H_data.append(H_ii[i, j])
 
-                    for i in range(3):
-                        for j in range(3):
-                            H_row.append((3 * to_pose_idx_in_matrix) + i)
-                            H_col.append((3 * to_pose_idx_in_matrix) + j)
+                    for i in range(variable_dim):
+                        for j in range(variable_dim):
+                            H_row.append(
+                                (num_elements_per_pose * to_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + i
+                            )
+                            H_col.append(
+                                (num_elements_per_pose * to_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + j
+                            )
                             H_data.append(H_jj[i, j])
 
-                    for i in range(3):
-                        for j in range(3):
-                            H_row.append((3 * from_pose_idx_in_matrix) + i)
-                            H_col.append((3 * to_pose_idx_in_matrix) + j)
+                    for i in range(variable_dim):
+                        for j in range(variable_dim):
+                            H_row.append(
+                                (num_elements_per_pose * from_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + i
+                            )
+                            H_col.append(
+                                (num_elements_per_pose * to_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + j
+                            )
                             H_data.append(H_ij[i, j])
 
-                    for i in range(3):
-                        for j in range(3):
-                            H_row.append((3 * to_pose_idx_in_matrix) + i)
-                            H_col.append((3 * from_pose_idx_in_matrix) + j)
+                    for i in range(variable_dim):
+                        for j in range(variable_dim):
+                            H_row.append(
+                                (num_elements_per_pose * to_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + i
+                            )
+                            H_col.append(
+                                (num_elements_per_pose * from_pose_idx_in_matrix)
+                                + (variable_dim * row_ii)
+                                + j
+                            )
                             H_data.append(H_ji[i, j])
 
                     b[
-                        (3 * from_pose_idx_in_matrix) : (3 * from_pose_idx_in_matrix) + 3
+                        (num_elements_per_pose * from_pose_idx_in_matrix)
+                        + (variable_dim * row_ii) : (
+                            num_elements_per_pose * from_pose_idx_in_matrix
+                        )
+                        + (variable_dim * row_ii)
+                        + variable_dim
                     ] -= b_i
 
-                    b[(3 * to_pose_idx_in_matrix) : (3 * to_pose_idx_in_matrix) + 3] -= b_j
+                    b[
+                        (num_elements_per_pose * to_pose_idx_in_matrix)
+                        + (variable_dim * row_ii) : (
+                            num_elements_per_pose * to_pose_idx_in_matrix
+                        )
+                        + (variable_dim * row_ii)
+                        + variable_dim
+                    ] -= b_j
 
             # solve the system
             H = sp.coo_matrix(
                 (H_data, (H_row, H_col)),
-                shape=(3 * num_poses, 3 * num_poses),
+                shape=(variable_dim * num_variables, variable_dim * num_variables),
             )
 
             H = H.tocsc()
             factor = cholmod.cholesky(H)
 
             delta_x = factor.solve_A(b)
-            print(f" {epoch}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}")
+
+            import time
+
+            print(f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}")
+            time.sleep(1)
 
             # Function to project a matrix back to SO(3)
             def project_to_so3(R):
@@ -735,13 +789,13 @@ class PoseGraphOptimizer:
                 pose["R"] = project_to_so3(pose["R"])
 
                 self.poses_initial[pose_id]["R"] = pose["R"]
-                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(pose["R"]) 
+                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(pose["R"])
 
-                if 0:
-                    print(f"\npose[R] before\n {R_orig}")
+                if 1:
+                    print(f"\npose_id {pose_id}")
+                    print(f"pose[R] before\n {R_orig}")
                     print(f"pose[R] updated\n {R_updated}")
                     print(f"pose[R] after projection to SO(3)\n {pose['R']}")
-
 
     def initialize_variables_container(self, index_map):
         """
@@ -1371,8 +1425,8 @@ if __name__ == "__main__":
     # dataset_name = "data/cubicle.g2o"
 
     # TODO: these datasets still fail
-    dataset_name = "data/sphere2500.g2o" # need more itertaions ..
-    # dataset_name = "data/grid3D.g2o"
+    # dataset_name = "data/sphere2500.g2o" # need more itertaions ..
+    dataset_name = "data/grid3D.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
