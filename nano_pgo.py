@@ -663,24 +663,20 @@ class PoseGraphOptimizer:
                 to_pose_idx_in_matrix = self.index_map[to_pose_id]
 
                 for row_ii in range(3):
-                    # e = meas - pred 
+                    # e = meas - pred
                     res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
-                    J_i = Rij_meas.T 
-                    J_j = -np.eye(3) 
+                    J_i = Rij_meas.T
+                    J_j = -np.eye(3)
 
                     squared_res = res.T @ res
                     if abs(from_pose_id - to_pose_id) == 1:
                         weight = 1
                     else:
-                        weight = self.cauchy_weight(squared_res)
+                        weight = 0.0  # self.cauchy_weight(squared_res)
 
                     J_i *= weight
                     J_j *= weight
                     res *= weight
-
-                    if from_pose_idx_in_matrix == 0:
-                        J_i = np.eye(3)
-                        res *= 0.0
 
                     H_ii = J_i.T @ J_i
                     b_i = J_i.T @ res
@@ -778,31 +774,43 @@ class PoseGraphOptimizer:
 
             import time
 
-            print(f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}")
+            print(
+                f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
+            )
             time.sleep(1)
 
             def eq23icra15luca(M):
                 # SVD 분해 M = U * D * V^T
                 U, D, Vt = np.linalg.svd(M)
-                
+
                 # det(U * V^T)를 사용해 1 또는 -1로 값을 맞추기 위한 대각 행렬 생성
                 det_sign = np.sign(np.linalg.det(U @ Vt))
                 S = np.diag([1, 1, det_sign])
-                
+
                 # 가장 가까운 회전 행렬 R_star 구하기
                 R_star = U @ S @ Vt
-                
+
                 return R_star
 
             # update the rotmats
             for pose_id, pose in self.poses_initial.items():
+                print("\n\n")
                 R_orig = pose["R"].copy()
 
+                M = pose["R"].copy()  # eq 22, icra15, Luca Carlone, et al.
                 for row_ii in range(3):
-                    idx = self.index_map[pose_id]
-                    pose["R"][row_ii, :] += delta_x[(3 * idx) : (3 * idx) + 3]
-
-                M = pose["R"].copy() # eq 22, icra15, Luca Carlone, et al.
+                    pose_idx_in_matrix = self.index_map[pose_id]
+                    delta_x_block = delta_x[
+                        (num_elements_per_pose * pose_idx_in_matrix)
+                        + (variable_dim * row_ii) : (
+                            num_elements_per_pose * pose_idx_in_matrix
+                        )
+                        + (variable_dim * row_ii)
+                        + variable_dim
+                    ]
+                    M[row_ii, :] += delta_x_block
+                    print(f"M[row_ii, :] : {M[row_ii, :]}")
+                    print(f"delta_x_block: {delta_x_block}")
 
                 R_star = eq23icra15luca(M)
 
@@ -810,10 +818,11 @@ class PoseGraphOptimizer:
                 self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
 
                 if 1:
-                    print(f"\npose_id {pose_id}")
+                    print(f"pose_id {pose_id}")
                     print(f"pose[R] before\n {R_orig}")
+                    print(f"pose[R] chordal init\n {M}")
                     print(f"pose[R] updated\n {R_star}")
-                    print(f"pose[R] after projection to SO(3)\n {pose['R']}")
+                    print(self.poses_initial[pose_id])
 
     def initialize_variables_container(self, index_map):
         """
