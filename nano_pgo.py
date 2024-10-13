@@ -630,6 +630,8 @@ class PoseGraphOptimizer:
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
     def relax_rotation(self):
+        import time
+
         num_poses = len(self.poses_initial)
         num_edges = len(self.edges)
         print(f"num_poses: {num_poses}")
@@ -654,10 +656,10 @@ class PoseGraphOptimizer:
                 from_pose_id = edge["from"]
                 to_pose_id = edge["to"]
 
-                Ri = self.poses_initial[from_pose_id]["R"]
-                Rj = self.poses_initial[to_pose_id]["R"]
+                Ri = self.poses_initial[from_pose_id]["R"].copy()
+                Rj = self.poses_initial[to_pose_id]["R"].copy()
 
-                Rij_meas = edge["R"]
+                Rij_meas = edge["R"].copy()
 
                 from_pose_idx_in_matrix = self.index_map[from_pose_id]
                 to_pose_idx_in_matrix = self.index_map[to_pose_id]
@@ -670,13 +672,13 @@ class PoseGraphOptimizer:
 
                     squared_res = res.T @ res
                     if abs(from_pose_id - to_pose_id) == 1:
-                        weight = 1
+                        rot_weight = 1
                     else:
-                        weight = 0.0  # self.cauchy_weight(squared_res)
+                        rot_weight = 0.0 # self.cauchy_weight(squared_res)
 
-                    J_i *= weight
-                    J_j *= weight
-                    res *= weight
+                    J_i *= rot_weight
+                    J_j *= rot_weight
+                    res *= rot_weight
 
                     H_ii = J_i.T @ J_i
                     b_i = J_i.T @ res
@@ -686,7 +688,7 @@ class PoseGraphOptimizer:
 
                     H_ij = J_i.T @ J_j
                     H_ji = J_j.T @ J_i
-
+                
                     for i in range(variable_dim):
                         for j in range(variable_dim):
                             H_row.append(
@@ -772,8 +774,6 @@ class PoseGraphOptimizer:
 
             delta_x = factor.solve_A(b)
 
-            import time
-
             print(
                 f" {epoch}, dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
             )
@@ -814,8 +814,9 @@ class PoseGraphOptimizer:
 
                 R_star = eq23icra15luca(M)
 
-                self.poses_initial[pose_id]["R"] = R_star
-                self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
+                if 1:
+                    self.poses_initial[pose_id]["R"] = R_star
+                    self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
 
                 if 1:
                     print(f"pose_id {pose_id}")
