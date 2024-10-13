@@ -1472,7 +1472,7 @@ if __name__ == "__main__":
     """
       Dataset selection
     """
-    # Successed datasets
+    # # Easy sequences
     # dataset_name = "data/input_INTEL_g2o.g2o"
     # dataset_name = "data/input_M3500_g2o.g2o"
     # dataset_name = "data/FR079_P_toro.graph"
@@ -1481,8 +1481,10 @@ if __name__ == "__main__":
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
-    # dataset_name = "data/sphere2500.g2o"  # need rotation initialization
-    # dataset_name = "data/input_M3500b_g2o.g2o" # need rotation initialization, Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
+
+    # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
+    # dataset_name = "data/sphere2500.g2o" 
+    # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
