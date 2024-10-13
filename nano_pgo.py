@@ -1148,7 +1148,10 @@ class PoseGraphOptimizer:
             Adds a prior to the first pose to fix the gauge freedom.
             """
             # Current estimate of the prior pose
-            xi_prior = self.get_state_block(self.x, self.idx_prior)
+            # xi_prior = self.get_state_block(self.x, self.idx_prior)
+            xi_prior = np.hstack(
+                (np.array([0.0, 0.0, 0.0]), rotmat_to_rotvec(np.identity(3)))
+            )  # e.g., forcee to origin
 
             # Initial estimate (measurement) of the prior pose
             pose_prior_meas = self.poses_initial[self.prior_pose_id]
@@ -1299,7 +1302,7 @@ class PoseGraphOptimizer:
             if self.lambda_ < self.lambda_allowed_range[1]:
                 self.lambda_ *= 10.0
 
-            min_cauchy_c = 2.0
+            min_cauchy_c = 1.0
             if self.cauchy_c > min_cauchy_c:
                 self.cauchy_c /= 2.0
 
@@ -1478,13 +1481,13 @@ if __name__ == "__main__":
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
-    # dataset_name = "data/sphere2500.g2o"  # need more itertaions ..
+    # dataset_name = "data/sphere2500.g2o"  # need rotation initialization
+    # dataset_name = "data/input_M3500b_g2o.g2o" # need rotation initialization, Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
+    dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
-    dataset_name = "data/grid3D.g2o"
-    # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = "data/input_MITb_g2o.g2o"
-    # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
+    # dataset_name = "data/grid3D.g2o"
+    # dataset_name = "data/rim.g2o"  # seems need SE(2) only weights
 
     """
       Pose-graph optimization
@@ -1498,7 +1501,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # initial robust kernel size
-    cauchy_c = 10.0 
+    cauchy_c = 1.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
@@ -1513,9 +1516,17 @@ if __name__ == "__main__":
     # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
     # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
-    # noise for sphere2500
+    # noise for [sphere2500, MITb_g2o]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
     odom_information_matrix = np.diag([0.5, 0.5, 0.5, 100.0, 100.0, 100.0])
+
+    # noise for grid3D
+    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+    # noise for rim (TBD)
+    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
