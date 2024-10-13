@@ -53,6 +53,7 @@
     - what are the differences between numerical and symbolic diffs.
     - how to use symforce APIs. 
     - how to use GTSAM APIs.
+    - why rotation initialization is important 
     - what is the real-world problems, use-cases, and state-of-the arts.
     
 ## Symforce-based Auto-generated Jacobians 
@@ -193,8 +194,13 @@
     # see `between_factor_jacobian_by_symforce` function in the `nano_pgo.py` for the details.
     ```
 
+## Rotation Initialization
+- Another **very** important topic is rotation initialization for good convergence.
+- See `relax_rotation` ...
+    - This is a from-scratch implementation of Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
+- `TODO`: To add explanations and refactor the function ... 
+
 ## TODO
-- Equipped with better initialization strategies (e.g., rotation averaging) 
 - Detailed teaching materials
 
 ## Acknowledgement 
