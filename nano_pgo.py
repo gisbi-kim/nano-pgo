@@ -641,7 +641,7 @@ class PoseGraphOptimizer:
 
         num_elements_per_pose = num_variables_per_pose * variable_dim
 
-        num_epochs = 3
+        num_epochs = 5
         for epoch in range(num_epochs):
             print(f"\n\n ##### epoch {epoch}")
             # build the system
@@ -661,10 +661,20 @@ class PoseGraphOptimizer:
 
                 from_pose_idx_in_matrix = self.index_map[from_pose_id]
                 to_pose_idx_in_matrix = self.index_map[to_pose_id]
+
                 for row_ii in range(3):
                     res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
-                    J_i = Rij_meas.T
-                    J_j = -np.eye(3)
+
+                    squared_res = res.T @ res
+                    if abs(from_pose_id - to_pose_id) == 1:
+                        weight = 1.0
+                    else:
+                        weight = self.cauchy_weight(squared_res)
+                        print(from_pose_id, to_pose_id, weight)
+
+                    J_i = Rij_meas.T * weight
+                    J_j = -np.eye(3) * weight
+                    res = res * weight
 
                     H_ii = J_i.T @ J_i
                     b_i = J_i.T @ res
@@ -791,7 +801,7 @@ class PoseGraphOptimizer:
                 self.poses_initial[pose_id]["R"] = pose["R"]
                 self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(pose["R"])
 
-                if 1:
+                if 0:
                     print(f"\npose_id {pose_id}")
                     print(f"pose[R] before\n {R_orig}")
                     print(f"pose[R] updated\n {R_updated}")
@@ -1420,13 +1430,13 @@ if __name__ == "__main__":
     # dataset_name = "data/FR079_P_toro.graph"
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
-    # dataset_name = "data/parking-garage.g2o"
+    dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/sphere2500.g2o" # need more itertaions ..
-    dataset_name = "data/grid3D.g2o"
+    # dataset_name = "data/grid3D.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" # Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
     # dataset_name = "data/rim.g2o" # seems need SE(2) only weights
@@ -1443,7 +1453,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # robust kernel size
-    cauchy_c = 2.0
+    cauchy_c = 1.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
