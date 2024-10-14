@@ -1475,11 +1475,11 @@ if __name__ == "__main__":
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
     # dataset_name = "data/parking-garage.g2o"
-    # dataset_name = "data/M10000_P_toro.graph"
+    dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    dataset_name = "data/sphere2500.g2o"
+    # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
 
@@ -1510,15 +1510,7 @@ if __name__ == "__main__":
     # iteration-wise debug
     visualize3d_every_iteration = True
 
-    ###
-    ### diagonal information (inverse of variance) of [t, r]
-    ###
-
-    # general cases, tested at [Easy sequences and input_M3500b_g2o]
-    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-
-    # specific for [sphere2500, input_MITb_g2o]
+    # diagonal information (inverse of variance) of [t, r]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
     odom_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
 
