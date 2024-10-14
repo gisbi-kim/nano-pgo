@@ -635,6 +635,7 @@ class PoseGraphOptimizer:
         epsilon = 1e-5
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
+    # TODO: refactor this function
     def relax_rotation(self):
         """
         see section III.B of
@@ -670,15 +671,13 @@ class PoseGraphOptimizer:
 
                 Rij_meas = edge["R"].copy()
 
-                from_pose_idx_in_matrix = self.index_map[
-                    from_pose_id
-                ]  # int, so alreayd deep.copy()ed
-                to_pose_idx_in_matrix = self.index_map[
-                    to_pose_id
-                ]  # int, so alreayd deep.copy()ed
+                # int, so already deep copyed
+                from_pose_idx_in_matrix = self.index_map[from_pose_id]
+                to_pose_idx_in_matrix = self.index_map[to_pose_id]
 
                 for row_ii in range(3):
-                    # e = meas - pred
+                    # e = meas - pred (eq 21 of icra15luca)
+                    # see the paper https://www.dropbox.com/scl/fi/z77n8t3l6g6lv3tmvuyie/2015c-ICRA-initPGO3d.pdf?rlkey=2uqy0dserhx2niwntjil988ss&e=1&dl=0
                     res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
                     J_i = Rij_meas.T
                     J_j = -np.eye(3)
@@ -1483,7 +1482,7 @@ if __name__ == "__main__":
     dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    # dataset_name = "data/sphere2500.g2o" 
+    # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
     # dataset_name = "data/input_MITb_g2o.g2o"
 
@@ -1538,7 +1537,7 @@ if __name__ == "__main__":
     # add constraints
     pgo.add_edges(edges)
 
-    # add prior 
+    # add prior
     prior_node_idx = 0
     pgo.add_prior(prior_node_idx)
 
