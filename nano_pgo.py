@@ -448,7 +448,7 @@ class PoseGraphOptimizer:
         self.num_processes = num_processes
 
         self.max_iterations = max_iterations
-        self.termination_threshold = 1e-2  # recommend 1e-2 to 1e-1 for the sample data
+        self.termination_threshold = 1e-1  # recommend 1e-2 to 1e-1 for the sample data
 
         self.STATE_DIM = 6
 
@@ -639,9 +639,8 @@ class PoseGraphOptimizer:
         """
         Performs rotation initialization for the pose graph to improve the initial estimates of the rotations.
 
-        This method iteratively adjusts the rotation matrices of all poses based on the relative rotation measurements
-        from the edges. It builds and solves a linear system to compute rotation updates, applies robust weighting
-        to handle outliers, and ensures that the updated rotation matrices remain orthogonal.
+        This method is called "Chordal relaxation". It minimizes the row-wise 3-dim variables L2 loss between
+        rotation matrices of pose i and pose j, and ensures that the updated rotation matrices remain orthogonal.
 
         The process follows the methodology described in Section III.B of:
         "Initialization Techniques for 3D SLAM: a Survey on Rotation Estimation and its Use in Pose Graph Optimization"
@@ -669,12 +668,12 @@ class PoseGraphOptimizer:
 
         num_elements_per_pose = num_variables_per_pose * variable_dim
 
-        num_epochs = 3
+        num_epochs = 2
         for epoch in range(num_epochs):
             print(f" [relax_rotation] Rotation initialization epoch {epoch}")
 
             ###
-            # build the system
+            ### build the system
             ###
             H_row = []
             H_col = []
@@ -683,7 +682,9 @@ class PoseGraphOptimizer:
 
             information_edge = 1.0 * np.identity(3)
 
+            #
             # between factors
+            #
             for edge in self.edges:
                 from_pose_id = edge["from"]
                 to_pose_id = edge["to"]
@@ -765,7 +766,9 @@ class PoseGraphOptimizer:
                     b[from_variable_idx : from_variable_idx + variable_dim] -= b_i
                     b[to_variable_idx : to_variable_idx + variable_dim] -= b_j
 
+            #
             # A prior factor
+            #
             # Compute the residual (error) between current and initial estimates
             pose_idx_prior = self.idx_prior
 
@@ -776,7 +779,7 @@ class PoseGraphOptimizer:
             # Jacobian of the prior (identity matrix since it's a direct difference)
             J_prior = np.identity(9)
 
-            information_prior = 1e9 * np.identity(9)
+            information_prior = 1e-2 * np.identity(9)
             # Compute the prior's contribution to H and b
             H_prior = J_prior.T @ information_prior @ J_prior
             b_prior = J_prior.T @ information_prior @ residual_prior
@@ -792,7 +795,7 @@ class PoseGraphOptimizer:
             b[(9 * pose_idx_prior) : (9 * pose_idx_prior) + 9] -= b_prior
 
             ###
-            # solve the system
+            ### solve the system
             ###
             H = sp.coo_matrix(
                 (H_data, (H_row, H_col)),
@@ -819,7 +822,7 @@ class PoseGraphOptimizer:
                 return R_star
 
             ###
-            # update the rotmats
+            ### update the rotmats
             ###
             verbose = False
             for pose_id, pose in self.poses_initial.items():
@@ -843,7 +846,7 @@ class PoseGraphOptimizer:
                 self.poses_initial[pose_id]["R"] = R_star
                 self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
 
-        print(f"Chordal relaxation for rotation initialization is completed.\n")
+        print(f"\nChordal relaxation for the rotation initialization is completed.\n")
 
     def initialize_variables_container(self, index_map):
         """
@@ -945,7 +948,7 @@ class PoseGraphOptimizer:
         self.idx_prior = self.index_map[prior_pose_id]
 
         # Information matrix for the prior
-        self.information_prior = 1e9 * np.identity(self.STATE_DIM)  # Adjust as needed
+        self.information_prior = 1e-2 * np.identity(self.STATE_DIM)  # Adjust as needed
 
     def generate_poses_index_map(self, pose_indices):
         """
@@ -1140,21 +1143,22 @@ class PoseGraphOptimizer:
             """
             Adds a prior to the first pose to fix the gauge freedom.
             """
-            # Current estimate of the prior pose
-            # xi_prior = self.get_state_block(self.x, self.idx_prior)
-            xi_prior = np.hstack(
-                (np.array([0.0, 0.0, 0.0]), rotmat_to_rotvec(np.identity(3)))
-            )  # e.g., forcee to origin
-
             # Initial estimate (measurement) of the prior pose
             pose_prior_meas = self.poses_initial[self.prior_pose_id]
             xi_prior_meas = np.hstack((pose_prior_meas["t"], pose_prior_meas["r"]))
 
+            # Current estimate of the prior pose
+            xi_prior_est = self.get_state_block(self.x, self.idx_prior)
+            # xi_prior_est = np.hstack(
+            #     (np.array([0.0, 0.0, 0.0]), rotmat_to_rotvec(np.identity(3)))
+            # )  # e.g., forcee to origin
+            # xi_prior_est = xi_prior_meas.copy() # if want to fix the initial value.
+
             # Compute the residual (error) between current and initial estimates
-            residual_prior = xi_prior - xi_prior_meas
+            residual_prior = xi_prior_meas - xi_prior_est
 
             # Jacobian of the prior (identity matrix since it's a direct difference)
-            J_prior = np.identity(self.STATE_DIM)
+            J_prior = -np.identity(self.STATE_DIM)
 
             # Compute the prior's contribution to H and b
             H_prior = J_prior.T @ self.information_prior @ J_prior
@@ -1296,7 +1300,7 @@ class PoseGraphOptimizer:
                 self.lambda_ *= 10.0
 
             min_cauchy_c = 1.0
-            if self.cauchy_c > min_cauchy_c:
+            if self.cauchy_c / 2.0 > min_cauchy_c:
                 self.cauchy_c /= 2.0
 
             # Verbose
@@ -1357,7 +1361,7 @@ class PoseGraphOptimizer:
         return termination_flag
 
     @timeit
-    def optimize(self, visual_debug=True):
+    def optimize(self):
         """
         Performs pose graph optimization using the Gauss-Newton method with robust kernels.
 
@@ -1365,8 +1369,7 @@ class PoseGraphOptimizer:
         convergence criteria are met or the maximum number of iterations is reached.
 
         Parameters:
-            visual_debug (bool, optional): Flag to enable visual debugging. If True, visualization functions will be called.
-                                            (Default is True).
+            None
 
         Returns:
             dict: Optimized poses with pose IDs as keys and dictionaries containing rotation matrix 'R' and translation vector 't'.
@@ -1476,9 +1479,9 @@ if __name__ == "__main__":
     # dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    # dataset_name = "data/sphere2500.g2o"
+    dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    dataset_name = "data/input_MITb_g2o.g2o"
+    # dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/grid3D.g2o"
@@ -1496,7 +1499,7 @@ if __name__ == "__main__":
     max_iterations = 100
 
     # initial robust kernel size
-    cauchy_c = 1.0
+    cauchy_c = 10.0
 
     # recommend to use True (if False, using hand-written analytic Jacobian)
     use_symforce_generated_jacobian = True
@@ -1507,7 +1510,15 @@ if __name__ == "__main__":
     # iteration-wise debug
     visualize3d_every_iteration = True
 
-    # diagonal information (inverse of variance) of [t, r]
+    ###
+    ### diagonal information (inverse of variance) of [t, r]
+    ###
+
+    # general cases, tested at [Easy sequences and input_M3500b_g2o]
+    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+    # specific for [sphere2500, input_MITb_g2o]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
     odom_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
 
@@ -1536,7 +1547,7 @@ if __name__ == "__main__":
     pgo.add_prior(prior_node_idx)
 
     # Optimize poses
-    poses_optimized = pgo.optimize(visual_debug=True)
+    poses_optimized = pgo.optimize()
 
     # visualization (the final result)
     pgo.visualize_3d_poses(pgo.get_optimized_poses())
