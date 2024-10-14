@@ -635,17 +635,35 @@ class PoseGraphOptimizer:
         epsilon = 1e-5
         return self.cauchy_c / (np.sqrt(self.cauchy_c**2 + s) + epsilon)
 
-    # TODO: refactor this function
     def relax_rotation(self):
         """
-        see section III.B of
-        2015 ICRAInitialization Techniques for 3D SLAM: a Survey on Rotation Estimation and its Use in Pose Graph Optimization
+        Performs rotation initialization for the pose graph to improve the initial estimates of the rotations.
+
+        This method iteratively adjusts the rotation matrices of all poses based on the relative rotation measurements
+        from the edges. It builds and solves a linear system to compute rotation updates, applies robust weighting
+        to handle outliers, and ensures that the updated rotation matrices remain orthogonal.
+
+        The process follows the methodology described in Section III.B of:
+        "Initialization Techniques for 3D SLAM: a Survey on Rotation Estimation and its Use in Pose Graph Optimization"
+        (2015 ICRA).
+
+        Parameters:
+            None
+
+        Returns:
+            None
+
+        Notes:
+            - This function modifies `self.poses_initial` in-place with the updated rotation matrices.
+            - It uses the Cholesky decomposition from `sksparse.cholmod` to solve the sparse linear system.
+            - A prior is added to fix the gauge freedom by anchoring a specific pose's rotation.
         """
 
         num_poses = len(self.poses_initial)
-        num_edges = len(self.edges)
 
-        variable_dim = 3  # a single rotmat's row
+        variable_dim = (
+            3  # a single rotmat's row is a variable in the chordal relaxation
+        )
         num_variables_per_pose = 3
         num_variables = num_poses * num_variables_per_pose
 
@@ -653,8 +671,11 @@ class PoseGraphOptimizer:
 
         num_epochs = 3
         for epoch in range(num_epochs):
-            print(f"##### [relax_rotation] Rotation initialization epoch {epoch}")
+            print(f" [relax_rotation] Rotation initialization epoch {epoch}")
+
+            ###
             # build the system
+            ###
             H_row = []
             H_col = []
             H_data = []
@@ -662,121 +683,89 @@ class PoseGraphOptimizer:
 
             information_edge = 1.0 * np.identity(3)
 
+            # between factors
             for edge in self.edges:
                 from_pose_id = edge["from"]
                 to_pose_id = edge["to"]
 
+                # note. deep copy is important here.
                 Ri = self.poses_initial[from_pose_id]["R"].copy()
                 Rj = self.poses_initial[to_pose_id]["R"].copy()
 
                 Rij_meas = edge["R"].copy()
 
-                # int, so already deep copyed
                 from_pose_idx_in_matrix = self.index_map[from_pose_id]
                 to_pose_idx_in_matrix = self.index_map[to_pose_id]
 
+                # Iterate over each row of the rotation matrix
                 for row_ii in range(3):
-                    # e = meas - pred (eq 21 of icra15luca)
-                    # see the paper https://www.dropbox.com/scl/fi/z77n8t3l6g6lv3tmvuyie/2015c-ICRA-initPGO3d.pdf?rlkey=2uqy0dserhx2niwntjil988ss&e=1&dl=0
-                    res = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
-                    J_i = Rij_meas.T
-                    J_j = -np.eye(3)
+                    # Compute the residual: measured rotation row - predicted rotation row (eq 21 of icra15luca)
+                    residual = Rij_meas.T @ Ri[row_ii, :] - Rj[row_ii, :]
 
-                    squared_res = res.T @ information_edge @ res
+                    # Determine the weight based on whether it's a consecutive edge
                     if abs(from_pose_id - to_pose_id) == 1:
-                        rot_weight = 1
+                        weight = 1.0
                     else:
-                        rot_weight = self.cauchy_weight(squared_res)
+                        squared_residual = residual.T @ information_edge @ residual
+                        weight = self.cauchy_weight(squared_residual)
 
-                    J_i *= rot_weight
-                    J_j *= rot_weight
-                    res *= rot_weight
+                    # Apply the weight to residual and Jacobians
+                    weighted_residual = residual * weight
+                    J_i = Rij_meas.T * weight  # Jacobian w.r.t pose i
+                    J_j = -np.eye(3) * weight  # Jacobian w.r.t pose j
 
                     H_ii = J_i.T @ information_edge @ J_i
-                    b_i = J_i.T @ information_edge @ res
-
                     H_jj = J_j.T @ information_edge @ J_j
-                    b_j = J_j.T @ information_edge @ res
-
                     H_ij = J_i.T @ information_edge @ J_j
                     H_ji = J_j.T @ information_edge @ J_i
 
+                    b_i = J_i.T @ information_edge @ weighted_residual
+                    b_j = J_j.T @ information_edge @ weighted_residual
+
+                    # Populate the Hessian matrix entries
+                    from_pose_start_idx = (
+                        num_elements_per_pose * from_pose_idx_in_matrix
+                    )
+                    to_pose_start_idx = num_elements_per_pose * to_pose_idx_in_matrix
+
+                    variable_relative_location_within_a_pose = variable_dim * row_ii
+
+                    from_variable_idx = (
+                        from_pose_start_idx + variable_relative_location_within_a_pose
+                    )
+                    to_variable_idx = (
+                        to_pose_start_idx + variable_relative_location_within_a_pose
+                    )
+
                     for i in range(variable_dim):
                         for j in range(variable_dim):
-                            H_row.append(
-                                (num_elements_per_pose * from_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + i
-                            )
-                            H_col.append(
-                                (num_elements_per_pose * from_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + j
-                            )
+                            H_row.append(from_variable_idx + i)
+                            H_col.append(from_variable_idx + j)
                             H_data.append(H_ii[i, j])
 
                     for i in range(variable_dim):
                         for j in range(variable_dim):
-                            H_row.append(
-                                (num_elements_per_pose * to_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + i
-                            )
-                            H_col.append(
-                                (num_elements_per_pose * to_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + j
-                            )
+                            H_row.append(to_variable_idx + i)
+                            H_col.append(to_variable_idx + j)
                             H_data.append(H_jj[i, j])
 
                     for i in range(variable_dim):
                         for j in range(variable_dim):
-                            H_row.append(
-                                (num_elements_per_pose * from_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + i
-                            )
-                            H_col.append(
-                                (num_elements_per_pose * to_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + j
-                            )
+                            H_row.append(from_variable_idx + i)
+                            H_col.append(to_variable_idx + j)
                             H_data.append(H_ij[i, j])
 
                     for i in range(variable_dim):
                         for j in range(variable_dim):
-                            H_row.append(
-                                (num_elements_per_pose * to_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + i
-                            )
-                            H_col.append(
-                                (num_elements_per_pose * from_pose_idx_in_matrix)
-                                + (variable_dim * row_ii)
-                                + j
-                            )
+                            H_row.append(to_variable_idx + i)
+                            H_col.append(from_variable_idx + j)
                             H_data.append(H_ji[i, j])
 
-                    b[
-                        (num_elements_per_pose * from_pose_idx_in_matrix)
-                        + (variable_dim * row_ii) : (
-                            num_elements_per_pose * from_pose_idx_in_matrix
-                        )
-                        + (variable_dim * row_ii)
-                        + variable_dim
-                    ] -= b_i
+                    # Update the gradient vector
+                    b[from_variable_idx : from_variable_idx + variable_dim] -= b_i
+                    b[to_variable_idx : to_variable_idx + variable_dim] -= b_j
 
-                    b[
-                        (num_elements_per_pose * to_pose_idx_in_matrix)
-                        + (variable_dim * row_ii) : (
-                            num_elements_per_pose * to_pose_idx_in_matrix
-                        )
-                        + (variable_dim * row_ii)
-                        + variable_dim
-                    ] -= b_j
-
-            ###
-            # prior
+            # A prior factor
             # Compute the residual (error) between current and initial estimates
             pose_idx_prior = self.idx_prior
 
@@ -804,6 +793,7 @@ class PoseGraphOptimizer:
 
             ###
             # solve the system
+            ###
             H = sp.coo_matrix(
                 (H_data, (H_row, H_col)),
                 shape=(variable_dim * num_variables, variable_dim * num_variables),
@@ -815,7 +805,7 @@ class PoseGraphOptimizer:
             delta_x = factor.solve_A(b)
 
             print(
-                f" epoch {epoch}, rot rows vec dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
+                f"  - Epoch {epoch}, rot rows vec dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
             )
 
             def eq23icra15luca(M):
@@ -828,7 +818,9 @@ class PoseGraphOptimizer:
 
                 return R_star
 
+            ###
             # update the rotmats
+            ###
             verbose = False
             for pose_id, pose in self.poses_initial.items():
                 R_orig = pose["R"].copy()
@@ -850,6 +842,8 @@ class PoseGraphOptimizer:
 
                 self.poses_initial[pose_id]["R"] = R_star
                 self.poses_initial[pose_id]["r"] = rotmat_to_rotvec(R_star)
+
+        print(f"Chordal relaxation for rotation initialization is completed.\n")
 
     def initialize_variables_container(self, index_map):
         """
@@ -1479,12 +1473,12 @@ if __name__ == "__main__":
     # dataset_name = "data/FRH_P_toro.graph"
     # dataset_name = "data/parking-garage.g2o"
     # dataset_name = "data/M10000_P_toro.graph"
-    dataset_name = "data/cubicle.g2o"
+    # dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
     # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = "data/input_MITb_g2o.g2o"
+    dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/grid3D.g2o"
