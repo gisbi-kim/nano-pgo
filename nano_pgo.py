@@ -668,7 +668,8 @@ class PoseGraphOptimizer:
 
         num_elements_per_pose = num_variables_per_pose * variable_dim
 
-        num_epochs = 2
+        prev_dx = None
+        num_epochs = 3
         for epoch in range(num_epochs):
             print(f" [relax_rotation] Rotation initialization epoch {epoch}")
 
@@ -807,10 +808,23 @@ class PoseGraphOptimizer:
 
             delta_x = factor.solve_A(b)
 
+            delta_x_norm = np.linalg.norm(delta_x)
+
+            if prev_dx is None:
+                dx_gain = delta_x_norm
+            else:
+                dx_gain = np.linalg.norm(prev_dx - delta_x) 
+
+            prev_dx = delta_x
+
             print(
-                f"  - Epoch {epoch}, rot rows vec dx shape: {delta_x.shape}, dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}"
+                f"  - Epoch {epoch}, rot rows vec dx shape: {delta_x.shape}", 
+                f"dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}, dx gain: {dx_gain:.5f}"
             )
 
+            ###
+            ### update the rotmats
+            ###
             def eq23icra15luca(M):
                 U, D, Vt = np.linalg.svd(M)
 
@@ -821,10 +835,6 @@ class PoseGraphOptimizer:
 
                 return R_star
 
-            ###
-            ### update the rotmats
-            ###
-            verbose = False
             for pose_id, pose in self.poses_initial.items():
                 R_orig = pose["R"].copy()
 
@@ -1148,11 +1158,11 @@ class PoseGraphOptimizer:
             xi_prior_meas = np.hstack((pose_prior_meas["t"], pose_prior_meas["r"]))
 
             # Current estimate of the prior pose
-            xi_prior_est = self.get_state_block(self.x, self.idx_prior)
+            # xi_prior_est = self.get_state_block(self.x, self.idx_prior)
             # xi_prior_est = np.hstack(
             #     (np.array([0.0, 0.0, 0.0]), rotmat_to_rotvec(np.identity(3)))
             # )  # e.g., forcee to origin
-            # xi_prior_est = xi_prior_meas.copy() # if want to fix the initial value.
+            xi_prior_est = xi_prior_meas.copy() # if want to fix the initial value.
 
             # Compute the residual (error) between current and initial estimates
             residual_prior = xi_prior_meas - xi_prior_est
@@ -1289,8 +1299,8 @@ class PoseGraphOptimizer:
 
             # Verbose
             print(
-                f"\nIteration {iteration}: The total cost",
-                f"decreased from {error_before_opt:.3f} to {error_after_opt:.3f}",
+                f"\n\033[92mIteration {iteration}: The total cost decreased\033[0m",
+                f"from {error_before_opt:.3f} to {error_after_opt:.3f}",
                 f" \n - current lambda is {self.lambda_:.7f} and cauchy kernel is {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
@@ -1305,7 +1315,7 @@ class PoseGraphOptimizer:
 
             # Verbose
             print(
-                f"\nIteration {iteration}: The total cost did not decrease (from",
+                f"\n\033[91mIteration {iteration}: The total cost NOT decreased\033[0m (from",
                 f"{error_before_opt:.3f} to {error_after_opt:.3f}).",
                 f" \n - increase lambda to {self.lambda_:.7f} and cauchy kernel to {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
@@ -1475,13 +1485,13 @@ if __name__ == "__main__":
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
     # dataset_name = "data/parking-garage.g2o"
-    dataset_name = "data/M10000_P_toro.graph"
+    # dataset_name = "data/M10000_P_toro.graph"
     # dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
     # dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = "data/input_MITb_g2o.g2o"
+    dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/grid3D.g2o"
@@ -1514,6 +1524,7 @@ if __name__ == "__main__":
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
     odom_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
 
+    # PoseGraphOptimizer 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
         initial_cauchy_c=cauchy_c,
