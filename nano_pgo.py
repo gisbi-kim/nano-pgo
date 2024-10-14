@@ -1479,8 +1479,8 @@ if __name__ == "__main__":
     # dataset_name = "data/CSAIL_P_toro.graph"
     # dataset_name = "data/FRH_P_toro.graph"
     # dataset_name = "data/parking-garage.g2o"
-    dataset_name = "data/M10000_P_toro.graph"
-    # dataset_name = "data/cubicle.g2o"
+    # dataset_name = "data/M10000_P_toro.graph"
+    dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
     # dataset_name = "data/sphere2500.g2o" 
@@ -1514,21 +1514,9 @@ if __name__ == "__main__":
     # iteration-wise debug
     visualize3d_every_iteration = True
 
-    # general noise for good initialized datasets
-    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-
-    # noise for [sphere2500, MITb_g2o]
+    # diagonal information (inverse of variance) of [t, r]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
-    odom_information_matrix = np.diag([0.5, 0.5, 0.5, 100.0, 100.0, 100.0])
-
-    # noise for grid3D
-    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-
-    # noise for rim (TBD)
-    # loop_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
-    # odom_information_matrix = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    odom_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
 
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,

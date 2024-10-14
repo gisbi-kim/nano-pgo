@@ -37,3 +37,5 @@ Iteration 8: The total cost decreased from 26.771 to 18.395
 Iteration 9: The total cost decreased from 18.395 to 17.110  
  - current lambda is 0.0000016 and cauchy kernel is 1.25  
  - |delta_x|: 131.2276
+ 
+ ...
