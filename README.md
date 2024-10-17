@@ -196,6 +196,7 @@
 
 ## Rotation Initialization
 - Another **very** important topic is rotation initialization for good convergence.
+- Result comparison: [see this experiment](https://www.youtube.com/watch?v=JbBYb3284G4).
 - See `relax_rotation` ...
     - This is a from-scratch implementation of Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
 - `TODO`: To add explanations and refactor the function ... 
