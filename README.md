@@ -196,13 +196,33 @@
 
 ## Rotation Initialization
 - Another **very** important topic is rotation initialization for good convergence.
-- Result comparison: [see this experiment](https://www.youtube.com/watch?v=JbBYb3284G4).
-- See `relax_rotation` ...
-    - This is a from-scratch implementation of Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
-- `TODO`: To add explanations and refactor the function ... 
-
-## TODO
-- Detailed teaching materials
+- `nano-pgo` provides a from-scratch implementation of rotation initialization via chordal relaxation. 
+    - The chordal relaxation-based rotation initialization process follows Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
+- The pipeline 
+    ![rotation initialization process](docs/chordal/rot_init_process.png)
+    *Figure 4: A summary of the rotation initialization process 
+- Implementation
+    - See `relax_rotation` function for the details.
+- FAQ
+    1. What is chordal relaxation?
+        - To convert the optimization of nonlinear rotation variables into a linear least-squares problem.
+        - See the above-mentioned paper for the details 
+            - Carlone, Luca, et al. "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." 2015 IEEE international conference on robotics and automation (ICRA). IEEE, 2015.  
+    2. Why does it make theoretical sense and work?
+        - See the below paper's equation (1) to (6)
+            - Carlone, Luca, et al. "Lagrangian duality in 3D SLAM: Verification techniques and optimal solutions." 2015 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). IEEE, 2015.
+- Selected experiments [(video link)](https://www.youtube.com/watch?v=JbBYb3284G4).
+    1. For an easy dataset with good initial values, the with/without rotation initialization results are almost identical.
+        ![rot init effectiveness, easy case](docs/chordal/exp1_easy.png)
+        *Figure 5: The experiment 1 - easy case (`data/input_M3500_g2o.g2o`).
+    2. Even with good initials, rotation initialization should be always considered as a first step prior to the SE(3), the rotation+translation joint optimization. Because it could accelerate the convergence speed.
+        ![rot init effectiveness, easy case 2](docs/chordal/exp2_fast_converge.png)
+        *Figure 6: The experiment 2 - easy case, with fast convergence (`data/input_INTEL_g2o.g2o`).
+    3. Additionally, for challenging datasets where the initial values are far from the ground truth, it is strongly recommended to use the rotation initialization.
+        ![rot init effectiveness, difficult case](docs/chordal/exp3_hard.png)
+        *Figure 7: The effectiveness of the rotation initialization at the difficult `sphere-a` dataset (`data/sphere2500.g2o`). 
+- Further materials
+    - If you are looking for an off-the-shelf library APIs, see [gtsam::InitializePose3](https://github.com/devbharat/gtsam/blob/master/gtsam/slam/InitializePose3.cpp) and [this example](https://github.com/devbharat/gtsam/blob/master/examples/Pose3SLAMExample_initializePose3Chordal.cpp). 
 
 ## Acknowledgement 
 - Datasets from https://lucacarlone.mit.edu/datasets/
