@@ -198,7 +198,7 @@
 - Another **very** important topic is rotation initialization for good convergence.
 - `nano-pgo` provides a from-scratch implementation of rotation initialization via chordal relaxation. 
     - The chordal relaxation-based rotation initialization process follows Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
-- The pipeline 
+- The pipeline of Chordal relaxation-based rotation initialization 
     ![rotation initialization process](docs/chordal/rot_init_process.png)
     *Figure 4: A summary of the rotation initialization process*
 - Implementation
