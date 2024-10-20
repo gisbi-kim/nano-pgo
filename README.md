@@ -200,7 +200,7 @@
     - The chordal relaxation-based rotation initialization process follows Sec III-B of the ICRA 2015 paper of Luca Carlone et al., "Initialization techniques for 3D SLAM: A survey on rotation estimation and its use in pose graph optimization." .
 - The pipeline 
     ![rotation initialization process](docs/chordal/rot_init_process.png)
-    *Figure 4: A summary of the rotation initialization process 
+    *Figure 4: A summary of the rotation initialization process*
 - Implementation
     - See the `relax_rotation` function for the details.
 - FAQ
