@@ -21,6 +21,9 @@
  ![example results 2](docs/overview/pipeline.png)
 *Figure 2: The pipeline of nano-pgo*
 
+## Direct demo page
+- You can enjoy [nano-pgo via colab](https://colab.research.google.com/drive/1SmUaaiExfMV9EzAIGDuVPSV-K5655YQE?usp=sharing)!
+
 ## Preparation (dependencies)
 - Recommend to use python<3.12 and numpy<2, for example,
     - `$ python3.11 -m venv ~/envs/py311`
