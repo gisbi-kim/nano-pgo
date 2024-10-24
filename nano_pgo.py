@@ -1138,7 +1138,9 @@ class PoseGraphOptimizer:
         ii, edge, index_map, x, STATE_DIM, use_symforce_generated_jacobian = edge_data
 
         if self.loud_verbose and (ii % 1000 == 0):
-            print(f" [(par) build_sparse_system] processing edge {ii}/{len(edges)}")
+            print(
+                f" [(par) build_sparse_system] processing edge {ii}/{len(self.edges)}"
+            )
 
         idx_i = index_map[edge["from"]]
         idx_j = index_map[edge["to"]]
