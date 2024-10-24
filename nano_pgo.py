@@ -1609,24 +1609,26 @@ if __name__ == "__main__":
     """
       Dataset selection
     """
+    dataset_dir = "data"
+
     # # Easy sequences
-    # dataset_name = "data/input_INTEL_g2o.g2o"
-    # dataset_name = "data/input_M3500_g2o.g2o"
-    # dataset_name = "data/FR079_P_toro.graph"
-    # dataset_name = "data/CSAIL_P_toro.graph"
-    # dataset_name = "data/FRH_P_toro.graph"
-    # dataset_name = "data/parking-garage.g2o"
-    # dataset_name = "data/M10000_P_toro.graph"
-    # dataset_name = "data/cubicle.g2o"
+    # dataset_name = f"{dataset_dir}/input_INTEL_g2o.g2o"
+    # dataset_name = f"{dataset_dir}/input_M3500_g2o.g2o"
+    # dataset_name = f"{dataset_dir}/FR079_P_toro.graph"
+    # dataset_name = f"{dataset_dir}/CSAIL_P_toro.graph"
+    # dataset_name = f"{dataset_dir}/FRH_P_toro.graph"
+    # dataset_name = f"{dataset_dir}/parking-garage.g2o"
+    # dataset_name = f"{dataset_dir}/M10000_P_toro.graph"
+    # dataset_name = f"{dataset_dir}/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    dataset_name = "data/sphere2500.g2o"
-    # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = "data/input_MITb_g2o.g2o"
+    dataset_name = f"{dataset_dir}/sphere2500.g2o"
+    # dataset_name = f"{dataset_dir}/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
+    # dataset_name = f"{dataset_dir}/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
-    # dataset_name = "data/grid3D.g2o"
-    # dataset_name = "data/rim.g2o"  # seems need SE(2) only weights
+    # dataset_name = f"{dataset_dir}/grid3D.g2o"
+    # dataset_name = f"{dataset_dir}/rim.g2o"  # seems need SE(2) only weights
 
     """
       Pose-graph optimization
@@ -1648,13 +1650,13 @@ if __name__ == "__main__":
     # rotation initialization (recommend to test for sphere2500, mandatory to use)
     use_chordal_rotation_initialization = True
 
-    # iteration-wise debug
-    visualize3d_every_iteration = True
-
     # visualization engine
     visualize_using_open3d = (
         False  # if False, using plotly (may requires a few GB memories w.r.t datasets)
     )
+
+    # iteration-wise debug
+    visualize3d_every_iteration = True  # if False, only draw the final result (a converted one or an iteratation-ended one)
 
     # diagonal information (inverse of variance) of [t, r]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
@@ -1667,8 +1669,8 @@ if __name__ == "__main__":
         use_symforce_generated_jacobian=use_symforce_generated_jacobian,
         num_processes=num_processes,
         use_chordal_rotation_initialization=use_chordal_rotation_initialization,
-        visualize3d_every_iteration=visualize3d_every_iteration,
         visualize_using_open3d=visualize_using_open3d,
+        visualize3d_every_iteration=visualize3d_every_iteration,
         loop_information_matrix=loop_information_matrix,
         odom_information_matrix=odom_information_matrix,
     )
