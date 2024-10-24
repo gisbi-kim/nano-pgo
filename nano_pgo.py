@@ -23,6 +23,7 @@ from symforce.codegen import codegen_util
 
 import open3d as o3d
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 import multiprocessing
 
@@ -80,6 +81,121 @@ def se2_to_se3(x, y, theta):
     R = rotation.as_matrix()
     t = np.array([x, y, 0.0])
     return R, t
+
+
+def plot_two_poses_with_edges_plotly(
+    initial_poses_list,
+    optimized_poses_list,
+    edges,
+    iteration_name="",
+    skip=1,
+):
+    """
+    Visualizes initial and optimized poses along with edges using Plotly with equal axis scaling.
+
+    Parameters:
+        initial_poses_list (list of np.ndarray): List of initial pose translations (3D positions).
+        optimized_poses_list (list of np.ndarray): List of optimized pose translations (3D positions).
+        edges (list of dict): List of edges, where each edge contains "i", "j" for the indices.
+        skip (int, optional): Plot every 'skip' poses (default is 1, which plots all poses).
+    """
+
+    # Prepare poses for plotting
+    initial_poses_np = np.array(
+        [pose for idx, pose in enumerate(initial_poses_list) if idx % skip == 0]
+    )
+    optimized_poses_np = np.array(
+        [pose for idx, pose in enumerate(optimized_poses_list) if idx % skip == 0]
+    )
+
+    # Create a scatter plot for initial and optimized poses
+    trace_initial = go.Scatter3d(
+        x=initial_poses_np[:, 0],
+        y=initial_poses_np[:, 1],
+        z=initial_poses_np[:, 2],
+        mode="markers",
+        marker=dict(size=5, color="red"),
+        name="Initial Poses",
+    )
+
+    trace_optimized = go.Scatter3d(
+        x=optimized_poses_np[:, 0],
+        y=optimized_poses_np[:, 1],
+        z=optimized_poses_np[:, 2],
+        mode="markers",
+        marker=dict(size=5, color="green"),
+        name="Optimized Poses",
+    )
+
+    # Create lines for edges
+    edge_traces = []
+    for edge in edges:
+        from_idx = edge["i"]
+        to_idx = edge["j"]
+
+        if from_idx < len(optimized_poses_list) and to_idx < len(optimized_poses_list):
+            # Extract positions for the line
+            x_vals = [
+                optimized_poses_list[from_idx][0],
+                optimized_poses_list[to_idx][0],
+            ]
+            y_vals = [
+                optimized_poses_list[from_idx][1],
+                optimized_poses_list[to_idx][1],
+            ]
+            z_vals = [
+                optimized_poses_list[from_idx][2],
+                optimized_poses_list[to_idx][2],
+            ]
+
+            edge_trace = go.Scatter3d(
+                x=x_vals,
+                y=y_vals,
+                z=z_vals,
+                mode="lines",
+                line=dict(color="blue", width=2),
+                showlegend=False,  # Don't show edges in the legend
+            )
+            edge_traces.append(edge_trace)
+
+    # Combine all poses to calculate axis ranges
+    all_points = np.vstack((initial_poses_np, optimized_poses_np))
+    x_range = [all_points[:, 0].min(), all_points[:, 0].max()]
+    y_range = [all_points[:, 1].min(), all_points[:, 1].max()]
+    z_range = [all_points[:, 2].min(), all_points[:, 2].max()]
+
+    # Calculate the overall range for equal axes
+    max_range = max(
+        x_range[1] - x_range[0], y_range[1] - y_range[0], z_range[1] - z_range[0]
+    )
+    x_mid = np.mean(x_range)
+    y_mid = np.mean(y_range)
+    z_mid = np.mean(z_range)
+
+    # Set new ranges to make axes equal
+    x_range = [x_mid - max_range / 2, x_mid + max_range / 2]
+    y_range = [y_mid - max_range / 2, y_mid + max_range / 2]
+    z_range = [z_mid - max_range / 2, z_mid + max_range / 2]
+
+    # Combine all traces
+    fig = go.Figure(data=[trace_initial, trace_optimized] + edge_traces)
+
+    # Update layout with equal axis scaling
+    fig.update_layout(
+        title=f"{iteration_name}: Initial and Optimized Poses with Edges (Equal Axes)",
+        scene=dict(
+            xaxis=dict(title="X", range=x_range),
+            yaxis=dict(title="Y", range=y_range),
+            zaxis=dict(title="Z", range=z_range),
+            aspectmode="cube",  # Ensures the aspect ratio is equal for all axes
+        ),
+        showlegend=True,
+        width=1200,
+        height=800,
+    )
+
+    # Show the plot
+    fig.show()
 
 
 def plot_two_poses_with_edges_open3d(
@@ -444,6 +560,7 @@ class PoseGraphOptimizer:
         visualize3d_every_iteration=True,
         loop_information_matrix=np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]),  # [t, r]
         odom_information_matrix=np.diag([1.0, 1.0, 1.0, 10.0, 10.0, 10.0]),  # [t, r]
+        visualize_using_open3d=True,
     ):
         self.num_processes = num_processes
 
@@ -480,6 +597,8 @@ class PoseGraphOptimizer:
         self.H_fig_saved = False
         self.loud_verbose = True
         self.visualize3d_every_iteration = visualize3d_every_iteration
+
+        self.visualize_using_open3d = visualize_using_open3d
 
     @timeit
     def read_g2o_file(self, file_path):
@@ -813,13 +932,13 @@ class PoseGraphOptimizer:
             if prev_dx is None:
                 dx_gain = delta_x_norm
             else:
-                dx_gain = np.linalg.norm(prev_dx - delta_x) 
+                dx_gain = np.linalg.norm(prev_dx - delta_x)
 
             prev_dx = delta_x
 
             print(
-                f"  - Epoch {epoch}, rot rows vec dx shape: {delta_x.shape}", 
-                f"dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}, dx gain: {dx_gain:.5f}"
+                f"  - Epoch {epoch}, rot rows vec dx shape: {delta_x.shape}",
+                f"dx={delta_x}, norm(dx): {np.linalg.norm(delta_x):.5f}, dx gain: {dx_gain:.5f}",
             )
 
             ###
@@ -1162,7 +1281,7 @@ class PoseGraphOptimizer:
             # xi_prior_est = np.hstack(
             #     (np.array([0.0, 0.0, 0.0]), rotmat_to_rotvec(np.identity(3)))
             # )  # e.g., forcee to origin
-            xi_prior_est = xi_prior_meas.copy() # if want to fix the initial value.
+            xi_prior_est = xi_prior_meas.copy()  # if want to fix the initial value.
 
             # Compute the residual (error) between current and initial estimates
             residual_prior = xi_prior_meas - xi_prior_est
@@ -1304,6 +1423,8 @@ class PoseGraphOptimizer:
                 f" \n - current lambda is {self.lambda_:.7f} and cauchy kernel is {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
+
+            return True
         else:
             # Tune parameters
             if self.lambda_ < self.lambda_allowed_range[1]:
@@ -1320,6 +1441,8 @@ class PoseGraphOptimizer:
                 f" \n - increase lambda to {self.lambda_:.7f} and cauchy kernel to {self.cauchy_c:.2f}",
                 f" \n - |delta_x|: {np.linalg.norm(delta_x):.4f}\n",
             )
+
+            return False
 
     @timeit
     def process_single_iteration(self, iteration):
@@ -1350,13 +1473,13 @@ class PoseGraphOptimizer:
         self.x = x_new if total_error_after_iter_opt < total_error else self.x
 
         # Run-time adjustment of LM parameter and Cauchy kernel size
-        self.adjust_parameters(
+        is_cost_decreased = self.adjust_parameters(
             iteration, delta_x, total_error, total_error_after_iter_opt
         )
 
         # Visualize this iteration's result
-        if self.visualize3d_every_iteration:
-            self.visualize_3d_poses(self.get_optimized_poses())
+        if self.visualize3d_every_iteration and is_cost_decreased:
+            self.visualize_3d_poses(self.get_optimized_poses(), f"Iter {iteration}")
 
         # Check for convergence
         termination_flag = False
@@ -1416,7 +1539,7 @@ class PoseGraphOptimizer:
 
         return optimized_poses
 
-    def visualize_3d_poses(self, poses_optimized):
+    def visualize_3d_poses(self, poses_optimized, iteration_name=""):
         """
         Visualizes the initial and optimized poses in a 3D plot, showing the trajectory before and after optimization.
 
@@ -1440,10 +1563,18 @@ class PoseGraphOptimizer:
             {"i": edge["from"], "j": edge["to"]} for edge in self.edges
         ]
 
-        # Plot the results using Open3D
-        plot_two_poses_with_edges_open3d(
-            initial_positions_list, optimized_positions_list, edges_for_plotting
-        )
+        # Plot the results using Open3D or plotly
+        if self.visualize_using_open3d:
+            plot_two_poses_with_edges_open3d(
+                initial_positions_list, optimized_positions_list, edges_for_plotting
+            )
+        else:
+            plot_two_poses_with_edges_plotly(
+                initial_positions_list,
+                optimized_positions_list,
+                edges_for_plotting,
+                iteration_name,
+            )
 
     def plot_H_matrix(self, H, name):
         """
@@ -1489,9 +1620,9 @@ if __name__ == "__main__":
     # dataset_name = "data/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    # dataset_name = "data/sphere2500.g2o"
+    dataset_name = "data/sphere2500.g2o"
     # dataset_name = "data/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    dataset_name = "data/input_MITb_g2o.g2o"
+    # dataset_name = "data/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = "data/grid3D.g2o"
@@ -1506,7 +1637,7 @@ if __name__ == "__main__":
     num_processes = 1
 
     # if residual decrease is less than convergence_error_diff_threshold, early terminate.
-    max_iterations = 100
+    max_iterations = 15
 
     # initial robust kernel size
     cauchy_c = 10.0
@@ -1520,18 +1651,24 @@ if __name__ == "__main__":
     # iteration-wise debug
     visualize3d_every_iteration = True
 
+    # visualization engine
+    visualize_using_open3d = (
+        False  # if False, using plotly (may requires a few GB memories w.r.t datasets)
+    )
+
     # diagonal information (inverse of variance) of [t, r]
     loop_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
     odom_information_matrix = np.diag([1.0, 1.0, 1.0, 100.0, 100.0, 100.0])
 
-    # PoseGraphOptimizer 
+    # PoseGraphOptimizer
     pgo = PoseGraphOptimizer(
         max_iterations=max_iterations,
         initial_cauchy_c=cauchy_c,
         use_symforce_generated_jacobian=use_symforce_generated_jacobian,
         num_processes=num_processes,
-        visualize3d_every_iteration=visualize3d_every_iteration,
         use_chordal_rotation_initialization=use_chordal_rotation_initialization,
+        visualize3d_every_iteration=visualize3d_every_iteration,
+        visualize_using_open3d=visualize_using_open3d,
         loop_information_matrix=loop_information_matrix,
         odom_information_matrix=odom_information_matrix,
     )
@@ -1553,4 +1690,4 @@ if __name__ == "__main__":
     poses_optimized = pgo.optimize()
 
     # visualization (the final result)
-    pgo.visualize_3d_poses(pgo.get_optimized_poses())
+    pgo.visualize_3d_poses(pgo.get_optimized_poses(), "Final Result")
