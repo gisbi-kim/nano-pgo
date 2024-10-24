@@ -21,7 +21,6 @@ from symforce import codegen
 from symforce.values import Values
 from symforce.codegen import codegen_util
 
-import open3d as o3d
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
@@ -210,6 +209,8 @@ def plot_two_poses_with_edges_open3d(
         edges (list of dict): List of edges, where each edge contains "i", "j" for the indices.
         skip (int, optional): Plot every 'skip' poses (default is 1, which plots all poses).
     """
+
+    import open3d as o3d
 
     def poses_to_point_cloud(pose_list, color, skip=1):
         points = [pose for idx, pose in enumerate(pose_list) if idx % skip == 0]
