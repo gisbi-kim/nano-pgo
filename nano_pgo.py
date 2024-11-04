@@ -318,60 +318,46 @@ sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
 sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
 
-def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
-    return Tij.inverse() * (Ti.inverse() * Tj)
+def generate_optimized_between_error():
 
+    def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
+        return Tij.inverse() * (Ti.inverse() * Tj)
 
-between_error_codegen = codegen.Codegen.function(
-    func=sf_between_error,
-    config=codegen.PythonConfig(),
-)
-
-between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
-    which_args=["Ti", "Tj"],
-    include_results=True,
-)
-
-between_error_codegen_with_jacobians_data = (
-    between_error_codegen_with_jacobians.generate_function()
-)
-
-print(
-    "\nThe optimized (compiled) Jacobian source files generated in {}:\n".format(
-        between_error_codegen_with_jacobians_data.output_dir
+    between_error_codegen = codegen.Codegen.function(
+        func=sf_between_error,
+        config=codegen.PythonConfig(),
     )
-)
 
-# copy here and import it
-for f in between_error_codegen_with_jacobians_data.generated_files:
-    rel_path = f.relative_to(between_error_codegen_with_jacobians_data.output_dir)
+    between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
+        which_args=["Ti", "Tj"],
+        include_results=True,
+    )
 
-    gen_src_path = str(f)
+    between_error_codegen_with_jacobians_data = (
+        between_error_codegen_with_jacobians.generate_function()
+    )
 
-    if not gen_src_path.endswith("__init__.py"):
-        # Generate a new file name (__between_error_codegen.py)
-        target_path = os.path.join(os.getcwd(), "__between_error_codegen.py")
+    import importlib.util
 
-        # Copy the file
-        shutil.copyfile(gen_src_path, target_path)
-        print(f"File copied to: {target_path}")
-
-        # Import the copied file
-        spec = importlib.util.spec_from_file_location(
-            "__between_error_codegen", target_path
+    for file_path in between_error_codegen_with_jacobians_data.generated_files:
+        if file_path.name == "sf_between_error_with_jacobians01.py":
+            target_file = str(file_path)
+            break
+    else:
+        raise FileNotFoundError(
+            "sf_between_error_with_jacobians01.py not found in generated files."
         )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
 
-        # Import all functions from the module
-        globals().update(
-            {
-                name: getattr(mod, name)
-                for name in dir(mod)
-                if callable(getattr(mod, name))
-            }
-        )
-        print(f"Imported functions from: {target_path}")
+    spec = importlib.util.spec_from_file_location(
+        "sf_between_error_with_jacobians01", target_file
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return getattr(module, "sf_between_error_with_jacobians01")
+
+
+sf_between_error_with_jacobians_func = generate_optimized_between_error()
 
 
 @timeit
@@ -399,7 +385,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     # fast
     if using_optimized_compiled_one:
         # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
-        _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+        residual, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians_func(
             Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_i["r"])), t=pose_i["t"]),
             Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_j["r"])), t=pose_j["t"]),
             Tij=sym.Pose3(
@@ -422,13 +408,17 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
         sf_Jj[:3, 3:] = res_D_Tj[3:, :3]
         sf_Jj[3:, 3:] = res_D_Tj[:3, :3]
 
+        residual = residual.to_tangent()
+        r_err, t_err = residual[:3].copy(), residual[3:].copy()
+        residual[:3], residual[3:] = t_err, r_err
+
         # a verbose for debug or education,
         #  to compare with the hand-written, and the non-optimized Jacobians.
         if False:
             print("Jacobian wrt Ti:\n", sf_Jj)
             print("Jacobian wrt Tj:\n", sf_Jj)
 
-        return sf_Ji, sf_Jj
+        return residual, sf_Ji, sf_Jj
 
     # slow
     else:
@@ -442,6 +432,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
             sf_tij: sf.V3(pose_ij_meas["t"] + epsilon),
         }
 
+        sf_residual_val = sf_residual.subs(substitutions).to_numpy()
         sf_J_ti_val = sf_J_ti.subs(substitutions).to_numpy()
         sf_J_ri_val = sf_J_ri.subs(substitutions).to_numpy()
         sf_J_tj_val = sf_J_tj.subs(substitutions).to_numpy()
@@ -461,7 +452,11 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
         sf_Jj[:3, 3:] = sf_J_rj_val[3:, :]
         sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
 
-        return sf_Ji, sf_Jj
+        residual = np.zeros(6)
+        residual[:3] = sf_residual_val[3:]
+        residual[3:] = sf_residual_val[:3]
+
+        return residual, sf_Ji, sf_Jj
 
 
 @timeit
@@ -481,34 +476,35 @@ def compute_between_factor_residual_and_jacobian(
         Ji (np.ndarray): 6x6 (num_rows: cost-dim, by num_cols: var-dim) Jacobian matrix with respect to pose i.
         Jj (np.ndarray): 6x6 (num_rows: cost-dim, by num_cols: var-dim) Jacobian matrix with respect to pose j.
     """
-    # Unpack poses
-    ti, ri = pose_i["t"], pose_i["r"]
-    tj, rj = pose_j["t"], pose_j["r"]
-
-    # Convert rotation vectors to matrices
-    Ri = rotvec_to_rotmat(ri)
-    Rj = rotvec_to_rotmat(rj)
-
-    # Measurement
-    Rij_meas, tij_meas = pose_ij_meas["R"], pose_ij_meas["t"]
-
-    # Predicted relative transformation
-    Ri_inv = Ri.T
-    Rij_pred = Ri_inv @ Rj
-    tij_pred = Ri_inv @ (tj - ti)
-
-    # Error in rotation and translation
-    R_err = Rij_meas.T @ Rij_pred
-    t_err = Rij_meas.T @ (tij_pred - tij_meas)
-
-    # Map rotation error to rotation vector
-    r_err = rotmat_to_rotvec(R_err)
-
-    # NOTE: in this example, using [t, r] order for the tangent 6-dim vector.
-    residual = np.hstack((t_err, r_err))
 
     @timeit
     def between_factor_jacobian_by_hand_approx():
+        # Unpack poses
+        ti, ri = pose_i["t"], pose_i["r"]
+        tj, rj = pose_j["t"], pose_j["r"]
+
+        # Convert rotation vectors to matrices
+        Ri = rotvec_to_rotmat(ri)
+        Rj = rotvec_to_rotmat(rj)
+
+        # Measurement
+        Rij_meas, tij_meas = pose_ij_meas["R"], pose_ij_meas["t"]
+
+        # Predicted relative transformation
+        Ri_inv = Ri.T
+        Rij_pred = Ri_inv @ Rj
+        tij_pred = Ri_inv @ (tj - ti)
+
+        # Error in rotation and translation
+        R_err = Rij_meas.T @ Rij_pred
+        t_err = Rij_meas.T @ (tij_pred - tij_meas)
+
+        # Map rotation error to rotation vector
+        r_err = rotmat_to_rotvec(R_err)
+
+        # NOTE: in this example, using [t, r] order for the tangent 6-dim vector.
+        residual = np.hstack((t_err, r_err))
+
         # Jacobian w.r. to pose i
         Ji = np.zeros((6, 6))
         Ji[:3, :3] = -Rij_meas.T @ Ri_inv
@@ -523,20 +519,22 @@ def compute_between_factor_residual_and_jacobian(
         # ps. the above approximations are valid for small angle differecne
         #  (may differ at the early iterations wrt the symforce version)
 
-        return Ji, Jj
+        return residual, Ji, Jj
 
     # Compute Jacobians analytically
     if use_symforce_generated_jacobian:
-        Ji, Jj = between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas)
+        residual, Ji, Jj = between_factor_jacobian_by_symforce(
+            pose_i, pose_j, pose_ij_meas
+        )
     else:
-        Ji, Jj = between_factor_jacobian_by_hand_approx()
+        residual, Ji, Jj = between_factor_jacobian_by_hand_approx()
 
     debug_compare_jacobians = False
     if debug_compare_jacobians:
-        by_hand_Ji, by_hand_Jj = between_factor_jacobian_by_hand_approx()
+        _, by_hand_Ji, by_hand_Jj = between_factor_jacobian_by_hand_approx()
 
         start_time = time.perf_counter()
-        by_symb_Ji, by_symb_Jj = between_factor_jacobian_by_symforce(
+        _, by_symb_Ji, by_symb_Jj = between_factor_jacobian_by_symforce(
             pose_i, pose_j, pose_ij_meas
         )
         end_time = time.perf_counter()
@@ -1625,9 +1623,9 @@ if __name__ == "__main__":
     # dataset_name = f"{dataset_dir}/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    dataset_name = f"{dataset_dir}/sphere2500.g2o"
+    # dataset_name = f"{dataset_dir}/sphere2500.g2o"
     # dataset_name = f"{dataset_dir}/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = f"{dataset_dir}/input_MITb_g2o.g2o"
+    dataset_name = f"{dataset_dir}/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = f"{dataset_dir}/grid3D.g2o"
@@ -1655,7 +1653,7 @@ if __name__ == "__main__":
 
     # visualization engine
     visualize_using_open3d = (
-        False  # if False, using plotly (may requires a few GB memories w.r.t datasets)
+        True  # if False, using plotly (may requires a few GB memories w.r.t datasets)
     )
 
     # iteration-wise debug
