@@ -318,28 +318,46 @@ sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
 sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
 
-def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
-    return Tij.inverse() * (Ti.inverse() * Tj)
+def generate_optimized_between_error():
+
+    def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
+        return Tij.inverse() * (Ti.inverse() * Tj)
+
+    between_error_codegen = codegen.Codegen.function(
+        func=sf_between_error,
+        config=codegen.PythonConfig(),
+    )
+
+    between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
+        which_args=["Ti", "Tj"],
+        include_results=True,
+    )
+
+    between_error_codegen_with_jacobians_data = (
+        between_error_codegen_with_jacobians.generate_function()
+    )
+
+    import importlib.util
+
+    for file_path in between_error_codegen_with_jacobians_data.generated_files:
+        if file_path.name == "sf_between_error_with_jacobians01.py":
+            target_file = str(file_path)
+            break
+    else:
+        raise FileNotFoundError(
+            "sf_between_error_with_jacobians01.py not found in generated files."
+        )
+
+    spec = importlib.util.spec_from_file_location(
+        "sf_between_error_with_jacobians01", target_file
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return getattr(module, "sf_between_error_with_jacobians01")
 
 
-between_error_codegen = codegen.Codegen.function(
-    func=sf_between_error,
-    config=codegen.PythonConfig(),
-)
-
-between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
-    which_args=["Ti", "Tj"],
-    include_results=True,
-)
-
-namespace = "nano_pgo"
-between_error_codegen_with_jacobians_data = (
-    between_error_codegen_with_jacobians.generate_function(namespace)
-)
-
-gen_module = codegen_util.load_generated_package(
-    namespace, between_error_codegen_with_jacobians_data.function_dir
-)
+sf_between_error_with_jacobians_func = generate_optimized_between_error()
 
 
 @timeit
@@ -367,7 +385,7 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
     # fast
     if using_optimized_compiled_one:
         # Using the above auto-geneated functions within the copied __between_error_codegen.py file.
-        residual, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
+        residual, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians_func(
             Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_i["r"])), t=pose_i["t"]),
             Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_j["r"])), t=pose_j["t"]),
             Tij=sym.Pose3(
@@ -505,7 +523,9 @@ def compute_between_factor_residual_and_jacobian(
 
     # Compute Jacobians analytically
     if use_symforce_generated_jacobian:
-        residual, Ji, Jj = between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas)
+        residual, Ji, Jj = between_factor_jacobian_by_symforce(
+            pose_i, pose_j, pose_ij_meas
+        )
     else:
         residual, Ji, Jj = between_factor_jacobian_by_hand_approx()
 
@@ -1603,9 +1623,9 @@ if __name__ == "__main__":
     # dataset_name = f"{dataset_dir}/cubicle.g2o"
 
     # # Hard sequences, need rotation initialization (i.e., use_chordal_rotation_initialization=True)
-    dataset_name = f"{dataset_dir}/sphere2500.g2o"
+    # dataset_name = f"{dataset_dir}/sphere2500.g2o"
     # dataset_name = f"{dataset_dir}/input_M3500b_g2o.g2o" #Extra Gaussian noise with standard deviation 0.2rad is added to the relative orientation measurements
-    # dataset_name = f"{dataset_dir}/input_MITb_g2o.g2o"
+    dataset_name = f"{dataset_dir}/input_MITb_g2o.g2o"
 
     # TODO: these datasets still fail
     # dataset_name = f"{dataset_dir}/grid3D.g2o"
@@ -1633,7 +1653,7 @@ if __name__ == "__main__":
 
     # visualization engine
     visualize_using_open3d = (
-        False  # if False, using plotly (may requires a few GB memories w.r.t datasets)
+        True  # if False, using plotly (may requires a few GB memories w.r.t datasets)
     )
 
     # iteration-wise debug
