@@ -203,6 +203,7 @@
     sf_between_error_with_jacobians_func = generate_compiled_between_error_func()
     residual, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians_func( ... )
     ```
+    - I attached the hard-copied compiled function file at `__between_error_codegen.py`. 
 
 ## Rotation Initialization
 - Another **very** important topic is rotation initialization for good convergence.
