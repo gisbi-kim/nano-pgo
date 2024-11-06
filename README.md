@@ -161,40 +161,47 @@
     ```
 - However, the above "raw" symbolic Jacobian includes many redundant computations, making it slow. Therefore, by using SymForce's [codegen](https://symforce.org/tutorials/codegen_tutorial.html) functionality, it is possible to perform compilation and code optimization (i.e., compile the Jacobian), resulting in more than a 30x speed improvement in raw Python (here, for a single block calculation, that is a single edge's H and b, 0.0031 sec to 0.00009 sec, at a single core of AMD Ryzen 7 8845HS CPU). An example of using the Symforce `codegen` API is like:
     ```python
-    # optimized code compliation process
-    def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
-        return Tij.inverse() * (Ti.inverse() * Tj)
+    def generate_compiled_between_error_func():
 
+        def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
+            return Tij.inverse() * (Ti.inverse() * Tj)
 
-    between_error_codegen = codegen.Codegen.function(
-        func=sf_between_error,
-        config=codegen.PythonConfig(),
-    )
+        between_error_codegen = codegen.Codegen.function(
+            func=sf_between_error,
+            config=codegen.PythonConfig(),
+        )
 
-    between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
-        which_args=["Ti", "Tj"],
-        include_results=True,
-    )
+        between_error_codegen_with_jacobians = between_error_codegen.with_jacobians(
+            which_args=["Ti", "Tj"],
+            include_results=True,
+        )
 
-    between_error_codegen_with_jacobians_data = (
-        between_error_codegen_with_jacobians.generate_function()
-    )
+        between_error_codegen_with_jacobians_data = (
+            between_error_codegen_with_jacobians.generate_function()
+        )
 
-    # copy the generated source file and import ... 
-    # ...
+        import importlib.util
 
-    # Then you can use like this 
-    #  (Using the above auto-geneated functions within the copied __between_error_codegen.py file)
-    _, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians01(
-        Ti=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_i["r"])), t=pose_i["t"]),
-        Tj=sym.Pose3(R=sym.rot3.Rot3(rotvec_to_quat(pose_j["r"])), t=pose_j["t"]),
-        Tij=sym.Pose3(
-            R=sym.rot3.Rot3(rotvec_to_quat(pose_ij_meas["r"])),
-            t=pose_ij_meas["t"],
-        ),
-    )
+        for file_path in between_error_codegen_with_jacobians_data.generated_files:
+            if file_path.name == "sf_between_error_with_jacobians01.py":
+                target_file = str(file_path)
+                break
+        else:
+            raise FileNotFoundError(
+                "sf_between_error_with_jacobians01.py not found in generated files."
+            )
 
-    # see `between_factor_jacobian_by_symforce` function in the `nano_pgo.py` for the details.
+        spec = importlib.util.spec_from_file_location(
+            "sf_between_error_with_jacobians01", target_file
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        return getattr(module, "sf_between_error_with_jacobians01")
+
+    # Then, you can use the compiled function like this:
+    sf_between_error_with_jacobians_func = generate_compiled_between_error_func()
+    residual, res_D_Ti, res_D_Tj = sf_between_error_with_jacobians_func( ... )
     ```
 
 ## Rotation Initialization

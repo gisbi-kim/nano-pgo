@@ -318,7 +318,7 @@ sf_J_tj = sf_residual.jacobian([sf_tj])  # 6 x 3
 sf_J_rj = sf_residual.jacobian([sf_rj])  # 6 x 3
 
 
-def generate_optimized_between_error():
+def generate_compiled_between_error_func():
 
     def sf_between_error(Ti: sf.Pose3, Tj: sf.Pose3, Tij: sf.Pose3):
         return Tij.inverse() * (Ti.inverse() * Tj)
@@ -357,7 +357,7 @@ def generate_optimized_between_error():
     return getattr(module, "sf_between_error_with_jacobians01")
 
 
-sf_between_error_with_jacobians_func = generate_optimized_between_error()
+sf_between_error_with_jacobians_func = generate_compiled_between_error_func()
 
 
 @timeit
