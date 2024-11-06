@@ -453,8 +453,8 @@ def between_factor_jacobian_by_symforce(pose_i, pose_j, pose_ij_meas):
         sf_Jj[3:, 3:] = sf_J_rj_val[:3, :]
 
         residual = np.zeros(6)
-        residual[:3] = sf_residual_val[3:]
-        residual[3:] = sf_residual_val[:3]
+        residual[:3] = sf_residual_val[3:].flatten()
+        residual[3:] = sf_residual_val[:3].flatten()
 
         return residual, sf_Ji, sf_Jj
 
